@@ -1,0 +1,11 @@
+ALTER TABLE messages ADD COLUMN analysis_mode text;
+ALTER TABLE messages ADD COLUMN analysis_model text;
+ALTER TABLE messages ADD COLUMN analysis_fingerprint text;
+ALTER TABLE messages ADD COLUMN header_analysis jsonb;
+ALTER TABLE messages ADD COLUMN content_analysis jsonb;
+ALTER TABLE scans ADD COLUMN model text;
+ALTER TABLE scans ADD COLUMN key_version int;
+ALTER TABLE scans ADD COLUMN estimated_cost_low numeric;
+ALTER TABLE scans ADD COLUMN estimated_cost_high numeric;
+ALTER TABLE scans ADD COLUMN skipped int NOT NULL DEFAULT 0;
+ALTER TABLE scans ADD COLUMN content_consent boolean NOT NULL DEFAULT false;
