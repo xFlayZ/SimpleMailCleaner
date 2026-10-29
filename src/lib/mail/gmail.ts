@@ -1,6 +1,6 @@
 import { jsonRequest } from '../http';
 import { AppError } from '../errors';
-import { headerMap, parseContent, senderAddress, MAX_RAW } from './parse';
+import { headerMap, parseContent, senderAddress, MAX_RAW,newsletterHeaderSignal } from './parse';
 import type { MailAdapter, MailMessage, RestoreData } from './types';
 export class GmailAdapter implements MailAdapter {
  constructor(private access:string){}
@@ -16,7 +16,7 @@ export class GmailAdapter implements MailAdapter {
    for(const entry of result.messages||[]) {
     const msg=await this.request(`messages/${encodeURIComponent(entry.id)}?format=metadata`);
     const headers=headerMap(msg.payload?.headers||[]),labels:string[]=msg.labelIds||[];
-    messages.push({remoteId:msg.id,folder:'INBOX',sender:senderAddress(headers.from||''),subject:(headers.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:new Date(Number(msg.internalDate)).toISOString(),size:msg.sizeEstimate||0,isRead:!labels.includes('UNREAD'),flagged:labels.includes('STARRED')||labels.includes('IMPORTANT'),hasAttachments:Boolean(msg.payload?.parts?.some((p:{filename?:string})=>p.filename)),listId:headers['list-id']||null});
+    messages.push({remoteId:msg.id,folder:'INBOX',sender:senderAddress(headers.from||''),subject:(headers.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:new Date(Number(msg.internalDate)).toISOString(),size:msg.sizeEstimate||0,isRead:!labels.includes('UNREAD'),flagged:labels.includes('STARRED')||labels.includes('IMPORTANT'),hasAttachments:Boolean(msg.payload?.parts?.some((p:{filename?:string})=>p.filename)),listId:headers['list-id']||null,newsletterSignal:newsletterHeaderSignal(headers)});
    }
    page=result.nextPageToken||'';
   }while(page&&messages.length<max);

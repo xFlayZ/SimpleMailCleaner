@@ -3,6 +3,7 @@ export type Account = {id:string;user_id:string;provider:Provider;email:string;s
 export type MailMessage = {
  remoteId:string;folder:string;sender:string;subject:string;receivedAt:string;size:number;
  isRead:boolean;flagged:boolean;hasAttachments:boolean;listId:string|null;
+ newsletterSignal?:boolean;
 };
 export type MailContent = {text:string;raw:Buffer};
 export type RestoreData = {remoteId:string;folder:string;labels?:string[];originalId?:string};

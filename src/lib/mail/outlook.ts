@@ -1,6 +1,6 @@
 import { jsonRequest,readLimited } from '../http';
 import { AppError } from '../errors';
-import { parseContent,headerMap,MAX_RAW } from './parse';
+import { parseContent,headerMap,MAX_RAW,newsletterHeaderSignal } from './parse';
 import type { MailAdapter,MailMessage,RestoreData } from './types';
 export class OutlookAdapter implements MailAdapter {
  constructor(private access:string){}
@@ -16,7 +16,7 @@ export class OutlookAdapter implements MailAdapter {
    for(const msg of result.value||[]) {
     if(messages.length>=max)break;
     const h=headerMap(msg.internetMessageHeaders||[]);
-    messages.push({remoteId:msg.id,folder:msg.parentFolderId,sender:msg.from?.emailAddress?.address?.toLowerCase()||'',subject:(msg.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:msg.receivedDateTime,size:0,isRead:msg.isRead,flagged:msg.flag?.flagStatus==='flagged',hasAttachments:msg.hasAttachments,listId:h['list-id']||null});
+    messages.push({remoteId:msg.id,folder:msg.parentFolderId,sender:msg.from?.emailAddress?.address?.toLowerCase()||'',subject:(msg.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:msg.receivedDateTime,size:0,isRead:msg.isRead,flagged:msg.flag?.flagStatus==='flagged',hasAttachments:msg.hasAttachments,listId:h['list-id']||null,newsletterSignal:newsletterHeaderSignal(h)});
    }
    const next=result['@odata.nextLink'];
    if(next && !next.startsWith('https://graph.microsoft.com/v1.0/'))throw new AppError(502,'Ungültiger Graph-Fortsetzungslink.');

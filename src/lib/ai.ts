@@ -29,7 +29,7 @@ export function estimate(model:Model,characters:number) {
  // Conservative reservation: UTF-8 byte count plus system overhead, full configured output ceiling.
  return ((characters+2000)*Number(model.pricing.prompt)+700*Number(model.pricing.completion)+Number(model.pricing.request||0))*1.25;
 }
-type PromptMessage={role:'system'|'user';content:string};
+export type PromptMessage={role:'system'|'user';content:string};
 export type HeaderInput={id:string;sender:string;subject:string;receivedAt:string};
 export function headerFingerprint(message:Omit<HeaderInput,'id'>,modelId:string) {
  return digest(JSON.stringify({v:1,mode:'ai_headers',model:modelId,sender:message.sender,subject:message.subject,date:message.receivedAt}));
@@ -48,17 +48,18 @@ export function validateHeaderResults(value:unknown,ids:string[]) {
  for(const item of parsed.items){if(!expected.has(item.id)||seen.has(item.id))throw new AppError(422,'Ungültige KI-Nachrichtenreferenz.');seen.add(item.id);}
  return parsed.items;
 }
-async function requestAnalysis<T>(userId:string,scanId:string,prompts:PromptMessage[],model:Model,keyVersion:number,maxTokens:number,parse:(result:unknown)=>T) {
+export async function requestAnalysis<T>(userId:string,scanId:string|null,prompts:PromptMessage[],model:Model,keyVersion:number,maxTokens:number,parse:(result:unknown)=>T,review?:{reviewId:string;budget:number}) {
  const inputBytes=Buffer.byteLength(JSON.stringify(prompts));
  if(inputBytes+maxTokens>model.context_length)throw new AppError(422,'Modell-Kontextfenster für dieses Analysepaket zu klein.');
  const reserve=(inputBytes*Number(model.pricing.prompt)+maxTokens*Number(model.pricing.completion)+Number(model.pricing.request||0))*1.25,usageId=randomUUID();
  const apiKey=await tenant(userId,async db=>{
   const settings=requireValue((await db.query('SELECT * FROM settings WHERE user_id=$1 FOR UPDATE',[userId])).rows[0]);
-  if(!settings.api_key||!settings.ai_consent||settings.key_version!==keyVersion||settings.model!==model.id)throw new AppError(409,'KI-Einstellungen geändert. Scan erneut starten.');
+  if(!settings.api_key||!settings.ai_consent||settings.key_version!==keyVersion||!review&&settings.model!==model.id)throw new AppError(409,'KI-Einstellungen geändert. Scan erneut starten.');
+  if(review){const run=requireValue((await db.query('SELECT model,status,key_version FROM review_runs WHERE id=$1',[review.reviewId])).rows[0]);if(run.model!==model.id||run.key_version!==keyVersion||run.status!=='running')throw new AppError(409,'Neubewertung nicht mehr aktuell.');}
   const sums=(await db.query(`SELECT coalesce(sum(coalesce(cost,reserved)),0)::float AS monthly,
-   coalesce(sum(coalesce(cost,reserved)) FILTER(WHERE scan_id=$2),0)::float AS scan FROM usage_events WHERE user_id=$1 AND created_at>=date_trunc('month',now())`,[userId,scanId])).rows[0];
-  if(sums.monthly+reserve>Number(settings.monthly_budget)||sums.scan+reserve>Number(settings.scan_budget))throw new AppError(409,'KI-Budget erreicht. Verbleibende Nachrichten bleiben ungeprüft.');
-  await db.query('INSERT INTO usage_events(id,user_id,scan_id,model,key_version,reserved) VALUES($1,$2,$3,$4,$5,$6)',[usageId,userId,scanId,model.id,keyVersion,reserve]);
+   coalesce(sum(coalesce(cost,reserved)) FILTER(WHERE scan_id=$2 OR review_run_id=$3),0)::float AS scan FROM usage_events WHERE user_id=$1 AND created_at>=date_trunc('month',now())`,[userId,scanId,review?.reviewId||null])).rows[0];
+  if(sums.monthly+reserve>Number(settings.monthly_budget)||sums.scan+reserve>Math.min(Number(settings.scan_budget),review?.budget??Number(settings.scan_budget)))throw new AppError(409,'KI-Budget erreicht. Verbleibende Nachrichten bleiben ungeprüft.');
+  await db.query('INSERT INTO usage_events(id,user_id,scan_id,model,key_version,reserved,review_run_id) VALUES($1,$2,$3,$4,$5,$6,$7)',[usageId,userId,scanId,model.id,keyVersion,reserve,review?.reviewId||null]);
   return decrypt<string>(settings.api_key,userId);
  });
  try {

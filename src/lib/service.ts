@@ -6,6 +6,7 @@ import { protectionReasons } from './policy';
 import { ImapAdapter } from './mail/imap';
 import { models,modelReason,headerFingerprint } from './ai';
 import { estimateScanCost,type ScanMode,type ScanEstimate } from './scan-cost';
+import {aggregateOverview} from './aggregate';
 export async function connectImap(userId:string,provider:'tonline'|'yahoo',email:string,password:string) {
  const imap=new ImapAdapter({host:provider==='tonline'?'secureimap.t-online.de':'imap.mail.yahoo.com',port:993,secure:true,user:email,password});
  try{await imap.connect();}finally{await imap.close();}
@@ -16,17 +17,17 @@ export async function connectImap(userId:string,provider:'tonline'|'yahoo',email
 export async function dashboard(userId:string) {
  const data=await tenant(userId,async db=>{
   const accounts=(await db.query('SELECT id,provider,email,status,last_scan_at FROM accounts ORDER BY created_at')).rows;
-  const messages=(await db.query('SELECT id,account_id,sender,subject,received_at,size,is_read,flagged,has_attachments,list_id,category,recommendation,reason,protected,state,version,analyzed_at,analysis_mode,header_analysis,content_analysis,unsubscribe_verified,unsubscribe_status FROM messages ORDER BY received_at DESC LIMIT 2000')).rows;
+  const messages=(await db.query('SELECT id,account_id,sender,subject,received_at,size,is_read,flagged,has_attachments,list_id,category,recommendation,reason,protected,state,version,analyzed_at,analysis_mode,header_analysis,content_analysis,unsubscribe_verified,unsubscribe_status FROM messages ORDER BY received_at DESC LIMIT 50')).rows;
   const scans=(await db.query('SELECT * FROM scans ORDER BY created_at DESC LIMIT 20')).rows;
   const plans=(await db.query(`SELECT p.*, (SELECT count(*)::int FROM action_items a WHERE a.plan_id=p.id) AS count FROM plans p ORDER BY created_at DESC LIMIT 30`)).rows;
   const events=(await db.query('SELECT * FROM events ORDER BY created_at DESC LIMIT 50')).rows;
-  const settings=requireValue((await db.query('SELECT model,api_key IS NOT NULL AS has_key,key_version,ai_consent,scan_budget,monthly_budget FROM settings WHERE user_id=$1',[userId])).rows[0]);
+  const settings=requireValue((await db.query('SELECT model,api_key IS NOT NULL AS has_key,key_version,ai_consent,scan_budget,monthly_budget,activity_paused FROM settings WHERE user_id=$1',[userId])).rows[0]);
   const rules=(await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender);
   const usage=(await db.query("SELECT coalesce(sum(coalesce(cost,reserved)),0)::float AS cost,count(*) FILTER(WHERE cost IS NULL)::int AS estimated FROM usage_events WHERE created_at>=date_trunc('month',now())")).rows[0];
   return {accounts,messages,scans,plans,events,settings,rules,usage};
  });
  const devices=(await pool.query('SELECT account_id,last_seen FROM devices WHERE user_id=$1 AND revoked=false',[userId])).rows;
- return {...data,devices,configured:{google:Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),microsoft:Boolean(process.env.MICROSOFT_CLIENT_ID&&process.env.MICROSOFT_CLIENT_SECRET)},writesPaused:process.env.PAUSE_WRITES==='true'};
+ return {...data,...await aggregateOverview(userId),devices,configured:{google:Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),microsoft:Boolean(process.env.MICROSOFT_CLIENT_ID&&process.env.MICROSOFT_CLIENT_SECRET)},writesPaused:Boolean(data.settings.activity_paused)};
 }
 export async function scanEstimate(userId:string,accountId:string,mode:ScanMode,days:number,max:number):Promise<ScanEstimate> {
  const snapshot=await tenant(userId,async db=>{
@@ -65,7 +66,7 @@ export async function startScan(userId:string,accountId:string,mode:ScanMode,day
   return {id};
  });
 }
-export async function createPlan(userId:string,kind:'trash'|'restore'|'unsubscribe',ids:string[]) {
+export async function createPlan(userId:string,kind:'trash'|'restore'|'unsubscribe',ids:string[],manual=false) {
  if(process.env.PAUSE_WRITES==='true')throw new AppError(503,'Schreibaktionen sind vom Betreiber pausiert.');
  return tenant(userId,async db=>{
   const messages=(await db.query('SELECT * FROM messages WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[ids])).rows;
@@ -77,12 +78,12 @@ export async function createPlan(userId:string,kind:'trash'|'restore'|'unsubscri
   const unresolved=await db.query("SELECT id FROM action_items WHERE message_id=ANY($1::uuid[]) AND status IN ('executing','unknown') LIMIT 1",[selected.map(m=>m.id)]);
   if(unresolved.rowCount)throw new AppError(409,'Eine frühere Aktion für diese Auswahl ist noch aktiv oder unklar. Externen Zustand zuerst prüfen.');
   for(const m of selected) {
-   if(kind==='trash'&&(m.state!=='active'||m.recommendation!=='trash'||!m.analyzed_at||protectionReasons(m,rules).length))throw new AppError(409,'Auswahl enthält geschützte oder nicht zum Aufräumen bewertete Nachrichten.');
+   if(kind==='trash'&&(m.state!=='active'||!manual&&(m.recommendation!=='trash'||!m.analyzed_at)||protectionReasons(m,rules).length))throw new AppError(409,'Auswahl enthält geschützte oder nicht zum Aufräumen bewertete Nachrichten.');
    if(kind==='restore'&&(m.state!=='trashed'||!m.restore_data))throw new AppError(409,'Nachricht kann nicht wiederhergestellt werden.');
    if(kind==='unsubscribe'&&(!m.unsubscribe_verified||!m.unsubscribe_url||m.unsubscribe_status==='accepted'))throw new AppError(409,'Keine verifizierte One-Click-Abmeldung verfügbar.');
   }
-  const planId=randomUUID(),hash=digest(JSON.stringify({kind,items:selected.map(m=>({id:m.id,version:m.version}))}));
-  await db.query('INSERT INTO plans(id,user_id,kind,digest) VALUES($1,$2,$3,$4)',[planId,userId,kind,hash]);
+  const planId=randomUUID(),hash=digest(JSON.stringify({kind,manual,items:selected.map(m=>({id:m.id,version:m.version}))}));
+  await db.query('INSERT INTO plans(id,user_id,kind,digest,manual_selection) VALUES($1,$2,$3,$4,$5)',[planId,userId,kind,hash,kind==='trash'&&manual]);
   for(const m of selected)await db.query('INSERT INTO action_items(id,user_id,plan_id,message_id,message_version) VALUES($1,$2,$3,$4,$5)',[randomUUID(),userId,planId,m.id,m.version]);
   return {id:planId,digest:hash,kind,count:selected.length,expiresAt:new Date(Date.now()+900000).toISOString(),messages:selected.map(m=>({id:m.id,subject:m.subject,sender:m.sender}))};
  });
@@ -91,7 +92,7 @@ export async function approvePlan(userId:string,id:string,hash:string) {
  return tenant(userId,async db=>{
   const plan=requireValue((await db.query('SELECT * FROM plans WHERE id=$1 FOR UPDATE',[id])).rows[0]);
   if(plan.digest!==hash||plan.status!=='proposed'||new Date(plan.expires_at).getTime()<Date.now())throw new AppError(409,'Freigabe ist abgelaufen oder wurde bereits verwendet.');
-  await db.query("UPDATE plans SET status='approved',approved_at=now() WHERE id=$1",[id]);
+  await db.query("UPDATE plans SET status='approved',approved_at=now(),execution_expires_at=CASE WHEN selection IS NOT NULL THEN now()+interval '24 hours' ELSE NULL END WHERE id=$1",[id]);
   await db.query("INSERT INTO jobs(id,user_id,kind,ref_id) VALUES($1,$2,'action',$3)",[randomUUID(),userId,id]);
   await db.query("INSERT INTO events(id,user_id,kind,summary) VALUES($1,$2,'approval',$3)",[randomUUID(),userId,`Aktion ${plan.kind} ausdrücklich freigegeben.`]);
   return {ok:true};

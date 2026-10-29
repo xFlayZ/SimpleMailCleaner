@@ -6,7 +6,7 @@ import {scanModeNames,type ScanMode,type ScanEstimate} from '@/lib/scan-cost';
 const money=(value:number)=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:4}).format(value);
 export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:{data:DashboardData;initialAccountId:string;onStarted:()=>Promise<void>;onSettings:()=>void}) {
  const [accountId,setAccountId]=useState(initialAccountId||data.accounts[0]?.id||'');
- const [mode,setMode]=useState<ScanMode>('ai_headers'),[days,setDays]=useState(90),[max,setMax]=useState(100);
+ const [mode,setMode]=useState<ScanMode>('metadata'),[days,setDays]=useState(90),[max,setMax]=useState(100);
  const [consent,setConsent]=useState(false),[estimate,setEstimate]=useState<ScanEstimate|null>(null),[estimating,setEstimating]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const configured=data.settings.has_key&&data.settings.ai_consent&&Boolean(data.settings.model);
  useEffect(()=>{
@@ -29,13 +29,12 @@ export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:
  };
  return <>
   <span className="modal-symbol"><Sparkles size={25}/></span><h2 id="modal-title">Postfach analysieren</h2>
-  <p className="modal-description">Wähle bewusst, welche Daten geprüft werden. Kein Scan verändert deine E-Mails.</p>
+  <p className="modal-description">Importiere zuerst kostenlos die Metadaten. Anschließend kannst du den Bestand mit Filtern, Regeln und gruppierter KI gezielt neu bewerten.</p>
   {error&&<div className="error-banner" role="alert">{error}</div>}
   <form onSubmit={e=>{e.preventDefault();void start();}}>
    <label>Postfach<select value={accountId} onChange={e=>setAccountId(e.target.value)}>{data.accounts.map(a=><option key={a.id} value={a.id}>{a.email}</option>)}</select></label>
    <div className="scan-mode-picker" role="radiogroup" aria-label="Analyseart">
-    <button type="button" role="radio" aria-checked={mode==='metadata'} className={mode==='metadata'?'chosen':''} onClick={()=>chooseMode('metadata')}><Inbox size={19}/><span><strong>Lokale Übersicht</strong><small>Gruppierung ohne KI. Keine Daten an OpenRouter.</small></span><span className="pill neutral">0 USD</span></button>
-    <button type="button" role="radio" aria-checked={mode==='ai_headers'} className={mode==='ai_headers'?'chosen':''} onClick={()=>chooseMode('ai_headers')}><Mail size={19}/><span><strong>KI-Schnellanalyse <span className="mode-recommendation">Empfohlen</span></strong><small>Nur Absender, Betreff und Datum. Keine Nachrichtentexte oder Anhänge. Bewertungen in kleinen Paketen.</small></span></button>
+    <button type="button" role="radio" aria-checked={mode==='metadata'} className={mode==='metadata'?'chosen':''} onClick={()=>chooseMode('metadata')}><Inbox size={19}/><span><strong>Lokale Übersicht</strong><small>Empfohlen: kostenlos importieren und danach unter Prüfen & Aufräumen neu bewerten.</small></span><span className="pill neutral">0 USD</span></button>
     <button type="button" role="radio" aria-checked={mode==='ai'} className={mode==='ai'?'chosen':''} onClick={()=>chooseMode('ai')}><FileText size={19}/><span><strong>Separater KI-Inhaltsscan</strong><small>Übermittelt zusätzlich Textausschnitte. Umfangreicher, sensibler und meist teurer. Auf 500 Nachrichten begrenzt.</small></span></button>
    </div>
    <div className="form-grid"><label>Letzte Tage<input type="number" min="1" max="3650" required value={days} onChange={e=>setDays(Number(e.target.value))}/></label><label>Max. Nachrichten<input type="number" min="1" max={mode==='ai'?500:20000} required value={max} onChange={e=>setMax(Number(e.target.value))}/></label></div>
@@ -49,7 +48,7 @@ export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:
       <p>{estimate.basis}</p>
       <div className="estimate-budget">Scanbudget {money(estimate.scanBudget)} · Monatsbudget noch {money(estimate.availableBudget)}</div>
       {(estimate.low>estimate.scanBudget||estimate.low>estimate.availableBudget)&&<p className="inline-error">Das Budget liegt unter der Schätzung. Der Scan kann vorzeitig stoppen; es wird nicht automatisch erhöht.</p>}
-      <details><summary>Schätzmethode & Sicherheitsreserve</summary><p>Hochrechnung mit aktuellen Modellpreisen, kurzen Antworten und angenommenen Tokenlängen. Die Schnellanalyse nutzt bis zu 20 Nachrichten pro Anfrage. Kleine Kontextfenster können mehr Anfragen erfordern. Inhaltsscans hängen stark von der Textlänge ab.</p><p>Die technische Budgetreservierung ist eine vorsichtige Oberkante, keine erwartete Rechnung. Sie wird je Anfrage geprüft und soweit verfügbar durch den tatsächlichen Verbrauch ersetzt. Gebühren, Steuern und unbekannte Reasoning-Kosten sind nicht verlässlich vorhersagbar. Keine Kostengarantie.</p></details>
+      <details><summary>Schätzmethode & Sicherheitsreserve</summary><p>Hochrechnung mit aktuellen Modellpreisen, kurzen Antworten und angenommenen Tokenlängen. Inhaltsscans hängen stark von der Textlänge ab.</p><p>Die technische Budgetreservierung ist eine vorsichtige Oberkante, keine erwartete Rechnung. Sie wird je Anfrage geprüft und soweit verfügbar durch den tatsächlichen Verbrauch ersetzt. Gebühren, Steuern und unbekannte Reasoning-Kosten sind nicht verlässlich vorhersagbar. Keine Kostengarantie.</p></details>
      </>:<p>Kostenschätzung nicht verfügbar.</p>}
     </div>}
     <label className="checkbox-label"><input type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>{mode==='ai_headers'?'Ich bestätige die geschätzten Kosten und die Übermittlung von Absender, Betreff und Datum an OpenRouter und den Modellanbieter. Betreffzeilen können vertrauliche Informationen enthalten.':'Ich beauftrage ausdrücklich den separaten Inhaltsscan und bestätige die geschätzten Kosten. Zusätzlich werden entschlüsselte E-Mail-Textausschnitte an OpenRouter und den Modellanbieter übertragen; Anhänge werden nicht analysiert.'}</span></label>

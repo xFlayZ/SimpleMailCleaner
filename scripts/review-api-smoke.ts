@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {pool,tenant} from '../src/lib/db';
+import {token,digest} from '../src/lib/crypto';
+const user=randomUUID(),account=randomUUID(),secret=token(),base=process.env.APP_URL||'http://localhost:3000';let checks=0;
+async function request(path:string,data?:unknown){const response=await fetch(`${base}/api/${path}`,{method:data===undefined?'GET':'POST',headers:{Cookie:`smc_session=${secret}`,Origin:base,'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});return {status:response.status,data:response.headers.get('content-type')?.includes('application/json')?await response.json():await response.text()};}
+const check=(v:unknown)=>{assert.ok(v);checks++;};
+try{
+ await pool.query("INSERT INTO users(id,email,password_hash) VALUES($1,$2,'fixture')",[user,`${user}@review-api.invalid`]);
+ await pool.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '5 minutes')",[digest(secret),user]);
+ await tenant(user,async db=>{await db.query('INSERT INTO settings(user_id) VALUES($1)',[user]);await db.query("INSERT INTO accounts(id,user_id,provider,email) VALUES($1,$2,'gmail','review-api@example.invalid')",[account,user]);await db.query("INSERT INTO messages(id,user_id,account_id,remote_id,folder,sender,subject,received_at,is_read,list_id) VALUES($1,$2,$3,'fixture','INBOX','newsletter@example.invalid','=formula','2025-01-01',true,'list')",[randomUUID(),user,account]);});
+ const page=await request('messages?pageSize=25');check(page.status===200&&page.data.total===1&&page.data.items.length===1);const id=page.data.items[0].id;
+ const selected=await request('reviews/preview',{filters:{},config:{method:'local'},ids:[id]});check(selected.status===200&&selected.data.stats.total===1&&selected.data.estimate.high===0);
+ const foreign=await request('reviews/preview',{filters:{},config:{method:'local'},ids:[randomUUID()]});check(foreign.status===422);
+ const start=await request(`reviews/${selected.data.id}/start`,{});check(start.status===200);
+ check((await request(`reviews/${selected.data.id}/start`,{})).status===409);
+ check((await request(`reviews/${selected.data.id}/cancel`,{})).status===200);
+ check((await request('messages?dateFrom=2026-99-99')).status===422);
+ check((await request('messages?q=nonexistent')).data.total===0);
+ const csv=await request('messages/export');check(csv.status===200&&csv.data.includes("'=formula"));
+ check((await request('profiles',{name:'Fixture',config:{method:'local',minAgeDays:180}})).status===200);
+ const profiles=await request('profiles');check(profiles.data.profiles.length===1&&profiles.data.profiles[0].config.minAgeDays===180);
+ check((await request('messages/decision',{ids:[id],action:'keep'})).status===200);
+ check((await request('messages?source=manual')).data.total===1);
+ check((await request('groups')).data.items[0].count===1);
+ const overview=await request('dashboard');check(overview.data.summary.tracked===1&&overview.data.reviews[0].status==='cancelled');
+ // Manual trash can override a recommendation; bulk scopes still require preview and approval.
+ check((await request('plans',{kind:'trash',ids:[id]})).status===409);
+ const manual=await request('plans',{kind:'trash',ids:[id],manual:true});check(manual.status===200&&manual.data.count===1);
+ const bulk=await request('plans/bulk',{scope:'newsletters'});check(bulk.status===200&&bulk.data.count===1&&bulk.data.keep===1);
+ check((await request('plans/bulk',{scope:'older'})).status===422);
+ check((await request('plans/bulk',{scope:'sender',sender:'not-the-sender@example.invalid'})).status===422);
+ check((await request('plans/bulk',{scope:'older',before:'2025-01-01'})).status===422);
+ check((await request(`plans/${bulk.data.id}/approve`,{digest:bulk.data.digest})).status===200);
+ check((await request(`plans/${bulk.data.id}/cancel`,{})).status===200);
+ const edits=await request('messages/edit-preview',{ids:[id]});check(edits.status===200&&edits.data.count===1);
+ check((await request('messages/edit',{targets:edits.data.targets,protection:'unprotect'})).status===422);
+ check((await request('messages/edit',{targets:edits.data.targets,category:'promotion',protection:'unprotect',confirmRisk:true})).data.updated===1);
+ check((await request('messages?protection=unprotected')).data.total===1);
+ const protectedSnapshot=await request('messages/edit-preview',{ids:[id]});
+ check((await request('messages/edit',{targets:protectedSnapshot.data.targets,protection:'protect'})).data.updated===1);
+ check((await request('plans',{kind:'trash',ids:[id],manual:true})).status===409);
+ check((await request('messages?protection=protected')).data.total===1);
+ const activity=await request('activity?sort=oldest');check(activity.status===200&&activity.data.total===2);
+ check((await request(`activity/plans/${bulk.data.id}/items?page=1&status=all`)).data.total===1);
+ check((await request('activity?kind=review&status=cancelled')).data.total===1);
+ check((await request('profiles',{name:'Fixture',config:{method:'worker',userInstruction:'Rabattangebote als Vorschlag bewerten.'}})).status===200);
+ check((await request('profiles')).data.profiles[0].config.userInstruction==='Rabattangebote als Vorschlag bewerten.');
+ console.log(`${checks} HTTP-Prüfungen erfolgreich: Filter, CSV, Profil, explizite Auswahl, Freigabe, Deduplizierung, Stopp und Bestandszahlen. Keine externe KI oder Mail-Aktion.`);
+}finally{await pool.query('DELETE FROM users WHERE id=$1',[user]);await pool.end();}

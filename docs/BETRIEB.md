@@ -8,7 +8,7 @@ Diese erste Implementierung enthält produktive Schnittstellenpfade für alle f�
 - PostgreSQL-Schema, explizite Nutzertransaktionen unter einer eingeschränkten RLS-Rolle, zusammengesetzte Eigentümer-Fremdschlüssel.
 - Authentifizierte AES-256-GCM-Verschlüsselung von API-Schlüsseln, OAuth-Tokens und IMAP-Passwörtern mit Eigentümerbindung.
 - Gmail OAuth + Gmail API; Microsoft OAuth + Graph; feste T-Online-/Yahoo-IMAP-Profile; Proton-Bridge-Connector mit signierten, ablaufenden Aufträgen und lokalem Replay-Ledger.
-- Begrenzte manuelle Scans des Posteingangs mit Zeitraum; lokale Übersicht und KI-Schnellanalyse bis 20.000 Nachrichten, gesonderter Inhaltsscan bis 500. Die Schnellanalyse sendet nur Absender, Betreff und Datum in kleinen Paketen, lädt keinen Nachrichtentext und überspringt unveränderte frühere Bewertungen. Beide KI-Verfahren zeigen vorab eigene Kostenspannen; Inhalt benötigt gesonderte Einwilligung. Details in ANALYSEARTEN.md.
+- Metadatenimport bis 20.000 Nachrichten, konfigurierbare Neubewertung des vorhandenen Bestands bis 50.000 mit Regeln, Muster-Cache und optionaler KI; separater Inhaltsscan bis 500. Anbieter-Batch mit gesonderter Einwilligung ohne ZDR. Details in AUFRAEUMPIPELINE.md.
 - Metadaten-Gruppierung, KI-Inhaltsklassifikation über OpenRouter, Schutzregeln, dynamischer Modellkatalog, Budgetreservierung.
 - Feste, zeitlich begrenzte Pläne, explizite Freigabe, getrennte Aktionen für Papierkorb, Wiederherstellung und RFC-8058-Abmeldung.
 - Vor Papierkorbaktionen erneute Prüfung aktueller Markierungen und Anhänge beim Anbieter.
@@ -25,9 +25,18 @@ Diese erste Implementierung enthält produktive Schnittstellenpfade für alle f�
 - Kein allgemeines endgültiges Löschen, kein Papierkorb-Leeren. Wiederherstellung hängt vom Anbieterzustand ab.
 - Bei unklaren Mutationen bleibt die Nachricht gesperrt; kein automatischer Zustandsabgleich oder Self-Service zum Aufheben der Sperre. Ein neuer Scan allein hebt die Sperre nicht auf.
 - Registrierung unterstützt keine E-Mail-Verifikation, MFA, Passwort-zurücksetzen oder automatische Konto-Wiederherstellung. Keine unbeaufsichtigte öffentliche Registrierung vor Ergänzung dieser Funktionen.
-- Keine vollständig integrierte Benutzerkontolöschung oder eigene Exportoberfläche. Kontotrennung entfernt Anbieterzugänge und Nachrichtenindex; die restliche Nutzerlöschung erfolgt aktuell administrativ nach Prüfung laufender Aktionen.
+- Eine bestätigte Kontolöschung ist in der Anwendung verfügbar. Vor öffentlichem Betrieb müssen Aufbewahrungsfristen, Sicherungskopien und die vollständige Löschung aller abgeleiteten Daten weiter abgesichert und dokumentiert werden. Eine eigene Exportoberfläche ist nicht vorhanden.
 - Kein automatischer Schlüsselrotations-Assistent und noch kein KMS/OS-Schlüsselspeicher-Backend. Konfigurationsdateien müssen mit OS-Berechtigungen geschützt werden.
 - Metadaten, Begründungen und Wiederherstellungsreferenzen liegen im Datenbankschema im Klartext; verschlüsselte Datenträger/Backups und Zugriffskontrolle sind für den Betrieb erforderlich.
+
+## Workspace-Verwaltung (Stand 29.10.2026)
+
+- Feste App-Routen: `/dashboard`, `/mailbox`, `/newsletter`, `/senders`, `/cleanup`, `/activity`, `/settings` und `/login`; `/` leitet zum Dashboard.
+- Das Postfach zeigt alle erfassten Nachrichten einschließlich lokalem Papierkorbstatus. Sammelauswahl in der Ansicht „Alle E-Mails“ schließt Papierkorb-Nachrichten aus; Wiederherstellung erfolgt über den Papierkorbfilter.
+- Dashboard-Widgets lassen sich je Browser ausblenden und neu anordnen. Demo-Daten werden nur nach expliziter Aktivierung angezeigt.
+- Aktivitätsverlauf pausiert/fortsetzt die nutzereigene Queue und das Polling von OpenRouter-Batches. Bereits laufende externe Aufrufe werden nicht abrupt beendet. Automatische Wiederholung gibt es nur für Metadatenimporte und lokale Regel-Neubewertungen; KI-Läufe brauchen eine neue Kostenvorschau und Schreibaktionen mit unklarem Anbieterstatus werden nicht erneut ausgeführt.
+- Verlauf leeren entfernt beendete interne Einträge, jedoch keine aktiven Aufträge und keine Batch-Verweise, deren Ergebnis oder Remote-Löschung noch offen ist.
+- Lokales Leeren eines Postfachbestands entfernt den indexierten Nachrichtenbestand, Bewertungen und zugehörige interne Vorgänge; das Providerkonto bleibt verbunden und Provider-E-Mails werden nicht verändert. Ein vollständiges Konto-Löschen ist nach Passwortbestätigung unwiderruflich und wird bei offenen Vorgängen oder ungeklärten Batch-Bereinigungen abgelehnt.
 - Der Modellkatalog zeigt technische Eignung; ZDR-Routenverfügbarkeit wird beim echten Aufruf verbindlich erzwungen. Die UI stellt kein Gütesiegel oder garantierte Anbieterregion dar.
 - Ein laufender externer Request kann nach Abbruch noch abgeschlossen werden. Nach einer letzten lokalen Prüfung besteht wie bei anderen verteilten Systemen ein kleines Zeitfenster vor dem Anbieteraufruf.
 

@@ -1,61 +1,77 @@
 # SimpleMailCleaner
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-2f6b50.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-16-222222.svg)](https://nextjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%2B-4169E1.svg)](https://www.postgresql.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%2B-4169E1)](https://www.postgresql.org/)
 
-**Open-Source-Dashboard zum KI-gestützten Aufräumen deiner E-Mail-Postfächer – unter der MIT-Lizenz.**
+**An open-source workspace for privacy-conscious, AI-assisted email cleanup.** SimpleMailCleaner groups newsletters and recurring senders, helps review large mailboxes, and only moves or unsubscribes messages after the user explicitly approves the exact action.
 
-Newsletter erkennen, wiederkehrende Absender verstehen und unnötige Nachrichten gezielt aussortieren. Die KI liefert Empfehlungen; erst nach deiner ausdrücklichen Freigabe werden Nachrichten in den Papierkorb verschoben oder unterstützte Newsletter-Abmeldungen ausgeführt.
+[German README](README.de.md) · [Changelog](CHANGELOG.md) · [Security policy](SECURITY.md) · [Operating status and limitations](docs/BETRIEB.md)
 
-Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **ohne Docker** oder mit Docker Compose selbst betreiben. Jeder Nutzer verwendet seinen eigenen OpenRouter-API-Schlüssel.
+> **Project status:** early, self-hosted release for local and controlled multi-user testing. Provider adapters are implemented, but provider-specific end-to-end testing, OAuth verification and an independent security audit are still outstanding. This project is not a hosted SaaS service. Read the [current operating notes](docs/BETRIEB.md) before connecting a real mailbox.
 
-> **Entwicklungsstand:** frühe, lauffähige Version für lokale und kontrollierte Mehrnutzertests. Die Anbieteradapter sind implementiert; echte Kontotests, Anbieterfreigaben und eine unabhängige Sicherheitsprüfung stehen noch aus. Diese Version ist noch keine öffentlich freigegebene SaaS-Lösung. Siehe [Betriebsstand und Grenzen](docs/BETRIEB.md).
+## Screenshots
 
-## Funktionen
+The previews below use fictional mailbox data; they contain no user messages or account information.
 
-- Dashboard mit Newsletter- und Absendergruppen, Suchfunktion und Nachrichtenprüfung.
-- Drei getrennte Analysearten mit Kostenschätzung vor KI-Aufrufen.
-- Dynamischer OpenRouter-Modellkatalog mit Input-/Outputpreisen.
-- Eigene, verschlüsselt gespeicherte API-Schlüssel und Budgets pro Nutzer.
-- Geschützte Absender sowie Schutzsignale für markierte Nachrichten, Anhänge und wichtige Unterlagen.
-- Feste, zeitlich begrenzte Freigaben für konkrete Nachrichten statt pauschaler Löschaufträge.
-- Papierkorb und Wiederherstellung; keine endgültige Löschung durch die Anwendung.
-- Technisch verifizierte One-Click-Abmeldungen nach RFC 8058 mit gesonderter Freigabe.
-- Aktivitätsverlauf, Hintergrundverarbeitung und Behandlung unklarer Ausführungsergebnisse.
-- Deutlich markierte Vorschau mit fiktiven Daten, solange kein Anwendungskonto angemeldet ist.
+### Dashboard
 
-## Analysearten und Kosten
+![SimpleMailCleaner dashboard: mailbox statistics, cleanup pipeline, frequent senders and usage](docs/screenshots/dashboard.svg)
 
-| Analyse | An die KI übermittelte Daten | Umfang |
+### Mailbox search and review
+
+![SimpleMailCleaner mailbox with search, filters, message categories and recommendations](docs/screenshots/mailbox.svg)
+
+### Activity timeline
+
+![SimpleMailCleaner activity timeline with pause, clear and safe retry controls](docs/screenshots/activity.svg)
+
+## Features
+
+- Dashboard with indexed-message, newsletter, cleanup-suggestion, sender, unclassified-message and AI-usage metrics. Widgets can be hidden or reordered per browser.
+- Dedicated routes for Dashboard, Mailbox, Newsletters, Senders, Cleanup, Activity and Settings.
+- Mailbox-wide search, server-side filtering and pagination, CSV export, message preview and manual category/recommendation controls.
+- Sender and newsletter grouping, protected-sender rules and reviewed bulk cleanup by newsletter, exact sender or date.
+- Optional AI-assisted re-evaluation of the existing index, saved criteria profiles, a user instruction, preview and estimated cost before a run.
+- Cost-conscious pipeline: local rules → sender/subject grouping → per-user pattern cache → optional AI for unresolved patterns.
+- Optional OpenRouter native batch processing. Batch retention behavior is different from the standard zero-data-retention worker and requires separate consent.
+- Separate metadata, header-analysis and message-content scan modes, each with a scope and cost estimate.
+- User-specific OpenRouter API keys encrypted at rest, configurable model, per-run and monthly budgets.
+- Activity timeline with search, type/status filters, stable sorting, per-action results, queue pause/resume, history cleanup and safe retries for local-only operations.
+- Message-by-message and bulk category/protection editing, with an explicit risk confirmation for manual protection overrides.
+- Local mailbox-index purge and irreversible account deletion. Purging the local index does not change messages at the mail provider.
+- Protected-message safeguards, explicit immutable action selections, version checks and a separate approval step before provider mutations.
+- Newsletter unsubscribe only through verified RFC 8058 one-click headers. No form filling, login-based unsubscribe or final provider-side deletion.
+- Demo access is opt-in. Until a user chooses the demo or signs in, the app does not show fictional mailbox data as if it were their account.
+
+## Supported providers
+
+| Provider | Connection | Notes |
 | --- | --- | --- |
-| Lokale Übersicht | Keine | Bis zu 20.000 Nachrichten; 0 USD KI-Kosten |
-| KI-Schnellanalyse | Absender, Betreff, Datum und interne Nachrichtenreferenz | Bis zu 20.000 Nachrichten; Pakete mit bis zu 20 Einzelbewertungen |
-| Separater KI-Inhaltsscan | Zusätzlich bereinigte Textausschnitte | Bis zu 500 Nachrichten; zusätzliche Einwilligung erforderlich |
+| Gmail | Gmail API and OAuth | Requires a Google OAuth client; public use may require Google verification and security review. |
+| Outlook / Microsoft 365 | Microsoft Graph and OAuth | Requires a Microsoft OAuth app and any applicable tenant consent. |
+| T-Online | IMAP over TLS | Use a separate password for mail programs. |
+| Yahoo | IMAP over TLS | Use a Yahoo app password. |
+| Proton Mail | Local Proton Mail Bridge plus connector | Requires an eligible Proton plan, a running Bridge and the local connector. |
 
-Die Schnellanalyse ist die vorausgewählte KI-Option. Sie lädt keine Nachrichtentexte oder Anhänge. Unveränderte frühere Bewertungen werden wiederverwendet. Die Prüfungsliste kennzeichnet, worauf eine Empfehlung beruht; eine Bewertung ohne Inhalt ist keine vollständige Inhaltsprüfung.
+Adapter support is not provider certification. IMAP trash actions require an identifiable Trash folder and safe MOVE/UIDPLUS support; unsafe COPY/DELETE fallback is not used. Review [provider setup](docs/EINRICHTUNG.md) and [operational limitations](docs/BETRIEB.md).
 
-Kosten werden anhand des gewählten Modells, aktueller Tokenpreise und des Scanumfangs geschätzt. Eine Schätzung ist keine Abrechnungsgarantie. Die Anwendung erhöht Budgets nicht automatisch. Auch Betreffzeilen und Absender können sensible Daten enthalten.
+## Analysis modes and cost controls
 
-[Details zu Analysearten, Datenschutz und Kostenschätzung](docs/ANALYSEARTEN.md)
+| Mode | Data sent / scope |
+| --- | --- |
+| Metadata import | Sender, subject, date and mail/list flags. No AI call; up to 20,000 messages per import. |
+| Header analysis | Sender, subject and date sent to the selected model; up to 20,000 messages per scan, with local filtering, grouping and cache reuse. |
+| Re-evaluate indexed mail | Local rules first, then grouped sender/subject patterns; AI is optional and only receives unresolved metadata groups. |
+| Message-content scan | Text excerpts are a separate, explicit mode limited to 500 messages. Attachments are not analyzed. |
 
-## E-Mail-Anbieter
+Before an AI run, the app shows the selected scope, local decisions, unresolved patterns, request count and an estimate. Actual charges depend on the selected model, provider routing and tokenization; estimates are not guarantees. Sender addresses and subjects may themselves contain sensitive information. A worker by itself does not reduce token usage—local filtering, grouping and cache hits do.
 
-| Anbieter | Implementierter Zugang | Voraussetzungen / Grenzen |
-| --- | --- | --- |
-| T-Online | IMAP über TLS | Separates Passwort für E-Mail-Programme |
-| Outlook / Microsoft 365 | Microsoft Graph und OAuth | Eigener Microsoft-OAuth-Client; ggf. Tenant-Freigabe |
-| Yahoo | IMAP über TLS | App-Passwort; kein Yahoo-OAuth-Flow in dieser Version |
-| Gmail | Gmail API und OAuth | Eigener Google-OAuth-Client; öffentliche Nutzung kann Verifikation und Sicherheitsprüfung erfordern |
-| Proton Mail | Lokale Proton Mail Bridge mit Connector | Kostenpflichtiger Proton-Tarif, laufende Bridge und lokaler Connector |
+Standard worker requests ask OpenRouter for zero data retention and deny data collection. Native batch jobs have a different retention model and require a separate opt-in. Stopping a batch locally may not stop work already accepted by the remote provider. See [analysis and cost details](docs/ANALYSEARTEN.md) and [cleanup pipeline](docs/AUFRAEUMPIPELINE.md).
 
-IMAP-Papierkorbaktionen benötigen einen eindeutig erkannten Papierkorb sowie MOVE-/UIDPLUS-Unterstützung. Unsichere COPY/DELETE-Ersatzpfade werden nicht verwendet. Ein implementierter Adapter ist keine Zertifizierung durch den jeweiligen Anbieter.
+## Quick start without Docker
 
-Die automatische Newsletter-Abmeldung funktioniert nur mit erfolgreich verifizierten One-Click-Headern. Formulare, Logins und andere Verfahren werden im Originalpostfach manuell bearbeitet. Eine vom Endpunkt angenommene Anfrage garantiert keine dauerhafte Abmeldung.
-
-## Schnellstart ohne Docker
-
-Voraussetzungen: **Node.js 22.14+**, npm und **PostgreSQL 17+**.
+Requirements: Node.js 22.14+, npm and PostgreSQL 17+.
 
 ```bash
 git clone https://github.com/xFlayZ/SimpleMailCleaner.git
@@ -64,118 +80,65 @@ npm ci
 npm run setup
 ```
 
-1. Eine eigene PostgreSQL-Datenbank anlegen.
-2. `DATABASE_URL` in der erzeugten `.env` konfigurieren. Die Migration benötigt Rechte zum Anlegen der Tabellen und der eingeschränkten Rolle `smc_tenant`.
-3. Für lokalen Betrieb `APP_URL=http://localhost:3000` verwenden.
-4. Schema und Produktionsbuild erstellen:
+1. Create a dedicated PostgreSQL database.
+2. Configure `DATABASE_URL` and `APP_URL=http://localhost:3000` in `.env`. The migration creates tables and the restricted `smc_tenant` role; the database user needs the required migration privileges.
+3. Run database migrations and start the web app and worker in separate terminals:
+
+   ```bash
+   npm run db:migrate
+   npm run dev
+   npm run worker
+   ```
+
+4. Open `http://localhost:3000`. Register an account or choose **Zum Demo Zugang** to explore fictional data.
+
+For Docker Compose, see [deployment and operation](docs/BETRIEB.md). OAuth redirect URIs, environment variables, provider prerequisites and the Proton connector are documented in [setup](docs/EINRICHTUNG.md).
+
+### OAuth setup at a glance
+
+For Gmail and Outlook, create an OAuth application with the exact callback URLs and scopes listed in `docs/EINRICHTUNG.md`, then set the corresponding client ID and secret in `.env`. Restart the app after changing environment variables. A production deployment must use HTTPS and provider-approved redirect URIs. Do not commit `.env`, mailbox credentials, OAuth secrets or OpenRouter keys.
+
+## Application routes
+
+| Route | Area |
+| --- | --- |
+| `/dashboard` | Overview and configurable widgets |
+| `/mailbox` | All indexed messages, search and filters |
+| `/newsletter` | Newsletter groups and unsubscribe review |
+| `/senders` | Recurring senders and sender protection |
+| `/cleanup` | Review and cleanup suggestions |
+| `/activity` | Jobs, action history and results |
+| `/settings` | Mailboxes, OpenRouter and account controls |
+| `/login` | Sign in or register |
+
+The root route `/` redirects to `/dashboard`.
+
+## Safety model
+
+- AI creates recommendations; it never independently deletes or unsubscribes.
+- Provider mutations require a separate approval of a frozen list of message IDs and versions.
+- Trash actions move messages to the provider's Trash where supported; they do not permanently delete them.
+- Unsubscribe and trash are separate actions. Unsubscribe does not remove existing messages.
+- Message content is not fetched for metadata-only analysis. Content analysis requires its own explicit confirmation.
+- Tenant rows use PostgreSQL row-level security. User API keys are encrypted per user and are not returned to the UI after saving.
+- Local index purge, provider mailbox disconnect and full account deletion are different controls; none of them sends delete commands for messages at the provider.
+
+Read the full [security policy](SECURITY.md). Do not use this early release with a mailbox you cannot afford to lose access to.
+
+## Development
 
 ```bash
-npm run db:migrate
-npm run build
-npm run start
-```
-
-Den Hintergrunddienst in einem **zweiten Terminal** starten:
-
-```bash
-npm run worker
-```
-
-Anwendung unter **[localhost:3000](http://localhost:3000)** öffnen. „Eigenen Arbeitsplatz einrichten“ wählen und registrieren. Die erste Registrierung ist erlaubt; weitere Nutzer benötigen `REGISTRATION_OPEN=true`. Anwendungspasswort und E-Mail-Anbieterzugang sind voneinander unabhängig.
-
-Für die Entwicklung kann `npm run dev` statt Build/Start verwendet werden. Der Worker wird weiterhin separat benötigt.
-
-## Schnellstart mit Docker
-
-Voraussetzungen: Git, Node.js 22.14+ und ein laufendes Docker mit Compose.
-
-```bash
-git clone https://github.com/xFlayZ/SimpleMailCleaner.git
-cd SimpleMailCleaner
-npm ci
-npm run setup
-docker compose up --build -d
-```
-
-Compose startet PostgreSQL, Schema-Migration, Webanwendung und Worker. Web und Datenbank sind standardmäßig nur über Loopback erreichbar. Öffentliche Bereitstellung erfordert einen passenden TLS-Reverse-Proxy und weitere Betriebsvorbereitung.
-
-```bash
-docker compose logs -f web worker
-docker compose stop
-```
-
-`npm run setup` erzeugt zufällige lokale Geheimnisse und überschreibt keine vorhandene `.env`. Umgebungsdateien, lokale Datenbanken und Connector-Zustände gehören **nicht** ins Repository.
-
-## Anbieter und KI einrichten
-
-Die [vollständige Einrichtungsanleitung](docs/EINRICHTUNG.md) beschreibt:
-
-- Google-Cloud-Projekt, Gmail API, OAuth-Zustimmung, Testnutzer und Redirect-URL.
-- Microsoft-App-Registrierung, delegierte Berechtigungen und Redirect-URL.
-- T-Online-E-Mail-Passwort und Yahoo-App-Passwort.
-- Proton Bridge, Zertifikatsprüfung und lokale Connector-Kopplung.
-- OpenRouter-Schlüssel, Modellwahl, Budgets und getrennte Scan-Einwilligungen.
-
-Die Anleitung ist nach dem Start auch unter `/guide` in der Anwendung verfügbar. Beispielkonfigurationen stehen in [.env.example](.env.example) und [.env.connector.example](.env.connector.example). Niemals echte Schlüssel in diese Beispieldateien eintragen.
-
-## Architektur
-
-```text
-Browser → Next.js Web/API → PostgreSQL
-                              ↑
-                    persistente Aufträge
-                              ↓
-                       Node.js-Worker
-                    ├─ Gmail API / Graph / IMAP
-                    ├─ OpenRouter
-                    └─ verifizierte One-Click-Abmeldung
-
-Proton Bridge ← lokaler Connector → authentifizierte Serververbindung
-```
-
-PostgreSQL speichert Nutzer, verschlüsselte Zugangsdaten, Metadaten, Bewertungen und Freigaben. Nutzerbezogene Transaktionen laufen unter einer eingeschränkten RLS-Rolle. Der Worker übernimmt lang laufende Aufgaben. E-Mail-Texte werden nicht als dauerhafte Mailkopien gespeichert; der Proton-Transport verwendet einen kurzlebigen verschlüsselten Puffer.
-
-## Entwicklung und Tests
-
-```bash
-npm test
-npm run build
 npm run typecheck
-```
-
-Für Integrationsprüfungen eine **separate, migrierte Testdatenbank** konfigurieren. Sie erzeugen zufällig benannte Testnutzer und entfernen diese anschließend. Keinen laufenden Worker gegen dieselbe Testdatenbank verwenden.
-
-```bash
+npm test
 npm run test:integration
-npm run test:scans
+npm run test:reviews
+npm run test:bulk
+npm run test:controls
+npm run test:review-api
 ```
 
-Die HTTP-Prüfungen benötigen zusätzlich einen laufenden Webserver:
+Integration scripts use synthetic users and fake provider adapters; they should not be pointed at real mail accounts. See [contributing](CONTRIBUTING.md).
 
-```bash
-npm run test:api       # benötigt eine Testdatenbank ohne vorhandene Nutzer
-npm run test:scan-api
-```
+## License
 
-[Prüfprotokoll und noch ausstehende externe Tests](docs/PRUEFUNG.md)
-
-## Sicherheit und Datenschutz
-
-- Keine Schreibaktion allein aufgrund einer KI-Antwort.
-- Kein endgültiges Löschen und kein automatisches Leeren des Papierkorbs.
-- OpenRouter-Anfragen verlangen ZDR-Routing und den Ausschluss von Datensammlung. Fehlt eine passende Route, wird dies nicht still gelockert.
-- API-Schlüssel und Anbieterzugänge werden authentifiziert verschlüsselt und an den jeweiligen Nutzer gebunden.
-- Unsichere Abmeldeziele und nicht ausreichend authentifizierte Header werden abgelehnt.
-- Unklare Schreibvorgänge werden nicht blind wiederholt.
-
-Für öffentlichen Betrieb fehlen unter anderem unabhängige Sicherheitsprüfung, vollständige Recovery-/MFA-Prozesse, weitere Betriebshärtung und erforderliche Anbieterfreigaben. [Betriebsdokumentation lesen](docs/BETRIEB.md). Sicherheitslücken bitte gemäß [SECURITY.md](SECURITY.md) melden; keine Zugangsdaten oder echten E-Mail-Inhalte in öffentliche Issues aufnehmen.
-
-## Mitwirken
-
-Issues und Pull Requests sind willkommen. Siehe [CONTRIBUTING.md](CONTRIBUTING.md). Besonders hilfreich sind reproduzierbare Fehlerberichte mit synthetischen Daten, Tests der Anbieteradapter und Verbesserungen an Datenschutz, Zugänglichkeit und Dokumentation.
-
-## Lizenz
-
-SimpleMailCleaner ist **Open Source unter der [MIT-Lizenz](LICENSE)**. Nutzung, Änderung, Weitergabe und kommerzielle Verwendung sind unter deren Bedingungen erlaubt. Die Software wird ohne Gewährleistung bereitgestellt. Abhängigkeiten behalten ihre jeweiligen eigenen Lizenzen.
-
-Das Projekt wurde eigenständig umgesetzt. [Inbox Zero](https://github.com/elie222/inbox-zero) diente als Produktinspiration; dessen Code, Prompts und Assets wurden nicht übernommen.
+SimpleMailCleaner is licensed under the [MIT License](LICENSE).

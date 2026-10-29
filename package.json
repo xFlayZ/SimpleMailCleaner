@@ -20,6 +20,10 @@
     "connector": "tsx --env-file=.env.connector scripts/connector.ts",
     "setup": "node scripts/setup.mjs",
     "test:integration": "tsx --env-file=.env scripts/integration.ts",
+    "test:reviews": "tsx --env-file=.env scripts/review-integration.ts",
+    "test:review-api": "tsx --env-file=.env scripts/review-api-smoke.ts",
+    "test:bulk": "tsx --env-file=.env scripts/bulk-integration.ts",
+    "test:controls": "tsx --env-file=.env scripts/controls-integration.ts",
     "test:api": "tsx --env-file=.env scripts/api-smoke.ts",
     "test:scans": "tsx --env-file=.env scripts/scan-integration.ts",
     "test:scan-api": "tsx --env-file=.env scripts/scan-api-smoke.ts"

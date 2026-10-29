@@ -30,14 +30,15 @@ export class ImapAdapter implements MailAdapter {
    const uids=(found||[]).slice(-max).reverse();
    if(!uids.length)return [];
    const result:MailMessage[]=[];
-   for await(const msg of this.client.fetch(uids.join(','),{uid:true,envelope:true,flags:true,size:true,bodyStructure:true,headers:['list-id']},{uid:true})) {
+   for await(const msg of this.client.fetch(uids.join(','),{uid:true,envelope:true,flags:true,size:true,bodyStructure:true,headers:['list-id','list-unsubscribe','precedence']},{uid:true})) {
     const from=msg.envelope?.from?.[0];
-    const list=msg.headers?.toString().match(/^list-id:\s*(.+)$/im)?.[1]?.trim()||null;
+    const headerText=msg.headers?.toString()||'';
+    const list=headerText.match(/^list-id:\s*(.+)$/im)?.[1]?.trim()||null;
     const hasAttachment=(node:unknown):boolean=>{
      const n=node as {disposition?:string;childNodes?:unknown[]};
      return n?.disposition==='attachment'||Boolean(n?.childNodes?.some(hasAttachment));
     };
-    result.push({remoteId:encodeRef('INBOX',validity,msg.uid),folder:'INBOX',sender:senderAddress(from?.address||''),subject:(msg.envelope?.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:(msg.envelope?.date||new Date()).toISOString(),size:msg.size||0,isRead:msg.flags?.has('\\Seen')||false,flagged:msg.flags?.has('\\Flagged')||false,hasAttachments:hasAttachment(msg.bodyStructure),listId:list});
+    result.push({remoteId:encodeRef('INBOX',validity,msg.uid),folder:'INBOX',sender:senderAddress(from?.address||''),subject:(msg.envelope?.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:(msg.envelope?.date||new Date()).toISOString(),size:msg.size||0,isRead:msg.flags?.has('\\Seen')||false,flagged:msg.flags?.has('\\Flagged')||false,hasAttachments:hasAttachment(msg.bodyStructure),listId:list,newsletterSignal:Boolean(list||/^list-unsubscribe:/im.test(headerText)||/^precedence:\s*(bulk|list)\s*$/im.test(headerText))});
    }
    return result;
   }finally{lock.release();}

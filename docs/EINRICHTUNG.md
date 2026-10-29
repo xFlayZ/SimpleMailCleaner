@@ -1,6 +1,6 @@
 # Einrichtung und manuelle Schritte
 
-Stand: 28.10.2026. Alle fünf Zugangswege sind im Anwendungscode vorhanden. OAuth-Clients, externe Kontozugänge und Anbieterfreigaben musst du selbst einrichten. Zugangsdaten niemals in Git einchecken oder in einen Chat kopieren.
+Stand: 29.10.2026. Alle fünf Zugangswege sind im Anwendungscode vorhanden. OAuth-Clients, externe Kontozugänge und Anbieterfreigaben musst du selbst einrichten. Zugangsdaten niemals in Git einchecken oder in einen Chat kopieren.
 
 ## 1. Grundinstallation
 
@@ -20,11 +20,11 @@ docker compose up --build -d
 docker compose logs -f worker
 ```
 
-Die Datenbank wird automatisch migriert. Anwendung unter http://localhost:3000 öffnen. „Eigenen Arbeitsplatz einrichten“ und anschließend „Registrieren“ wählen. Das Anwendungspasswort ist unabhängig vom E-Mail-Passwort und benötigt mindestens 12 Zeichen.
+Die Datenbank wird automatisch migriert. Anwendung unter http://localhost:3000 öffnen. Für Anmeldung oder Registrierung `/login` verwenden. Das Anwendungspasswort ist unabhängig vom E-Mail-Passwort und benötigt mindestens 12 Zeichen. Die Demo wird erst über „Zum Demo Zugang“ bewusst aktiviert.
 
 Weitere Nutzer sind standardmäßig deaktiviert. Für einen kontrollierten Mehrnutzertest `REGISTRATION_OPEN=true` in `.env` setzen und Web/Worker neu erstellen. Vor öffentlicher Registrierung die Betriebsdokumentation lesen.
 
-Für native Entwicklung: eigene PostgreSQL-Datenbank anlegen, `DATABASE_URL` in `.env` setzen und `npm run db:migrate`, `npm run dev` sowie in einem zweiten Terminal `npm run worker` ausführen. Next.js lädt `.env`; die Skripte nutzen ausdrücklich dieselbe Datei. Die Migration benötigt Rechte zum Anlegen der Tabellen und der eingeschränkten Rolle `smc_tenant`. Die Verbindungsrolle muss diese Rolle annehmen dürfen. Der mitgelieferte Compose-Aufbau nutzt eine administrative Verbindungsrolle; jede nutzerbezogene Transaktion wechselt dennoch explizit in die per RLS eingeschränkte Rolle. Für einen öffentlichen Betrieb diese privilegierten Systempfade gesondert prüfen.
+Für native Entwicklung: eigene PostgreSQL-Datenbank anlegen, `DATABASE_URL` in `.env` setzen und `npm run db:migrate`, `npm run dev` sowie in einem zweiten Terminal `npm run worker` ausführen. Die Routen sind `/dashboard`, `/mailbox`, `/newsletter`, `/senders`, `/cleanup`, `/activity`, `/settings` und `/login`; `/` leitet zum Dashboard. Next.js lädt `.env`; die Skripte nutzen ausdrücklich dieselbe Datei. Die Migration benötigt Rechte zum Anlegen der Tabellen und der eingeschränkten Rolle `smc_tenant`. Die Verbindungsrolle muss diese Rolle annehmen dürfen. Der mitgelieferte Compose-Aufbau nutzt eine administrative Verbindungsrolle; jede nutzerbezogene Transaktion wechselt dennoch explizit in die per RLS eingeschränkte Rolle. Für einen öffentlichen Betrieb diese privilegierten Systempfade gesondert prüfen.
 
 ## 2. Google / Gmail OAuth
 
@@ -144,7 +144,7 @@ Quellen:
 
 ## 8. Erster sicherer Durchlauf
 
-Aktueller Scandialog: Neben der lokalen Übersicht gibt es eine sparsame KI-Schnellanalyse nur mit Absender, Betreff und Datum. Der Inhaltsscan ist eine getrennte Option mit zusätzlicher Einwilligung. Die Schnellanalyse ist die empfohlene KI-Startoption. Sie zeigt vorab eine eigene Kostenspanne, bündelt bis zu 20 Nachrichten pro Anfrage und überspringt unveränderte frühere Bewertungen. Details und Rechenbeispiele stehen in ANALYSEARTEN.md. One-Click-Abmeldeangebote werden weiterhin erst anhand von Roh-Nachrichten sicher verifiziert, nicht aus KI-Metadaten geraten.
+Empfohlen: kostenlose Metadaten importieren und anschließend unter „Aufräumen → Bestand neu bewerten“ lokale Regeln, gruppierte KI oder den optionalen Anbieter-Batch wählen. Die Vorschau zeigt Auswahl, Gruppen, Cache und Kosten. Inhaltsscans und Aktionen benötigen weiterhin eigene Freigaben. Details: AUFRAEUMPIPELINE.md.
 
 1. Nur ein eigenes Testkonto verbinden, zunächst einen Metadatenscan mit beispielsweise 20 Nachrichten und 30 Tagen starten.
 2. Worker laufen lassen und Fortschritt im Aktivitätsverlauf prüfen.

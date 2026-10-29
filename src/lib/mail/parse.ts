@@ -8,6 +8,9 @@ export async function parseContent(raw:Buffer) {
 export function headerMap(headers: {name:string;value:string}[]) {
  return Object.fromEntries(headers.map(h=>[h.name.toLowerCase(),h.value]));
 }
+export function newsletterHeaderSignal(headers:Record<string,string>) {
+ return Boolean(headers['list-id']||headers['list-unsubscribe']||/^(bulk|list)$/i.test(headers.precedence||''));
+}
 export function senderAddress(value:string) {
  return (value.match(/<([^<>]+)>/)?.[1] || value).trim().toLowerCase().slice(0,320);
 }
