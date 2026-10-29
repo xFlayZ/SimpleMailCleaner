@@ -5,9 +5,8 @@ import {AppError,requireValue} from './errors';
 import {models,modelReason,type Model} from './ai';
 import {matchingMessages} from './message-query';
 import {cleanupConfigSchema,reviewFilterSchema,type CleanupConfig,type IndexedMessage,type PatternGroup,type ReviewPreview,type Decision} from './review-types';
-import {planPipeline,constrainDecision} from './cleanup-pipeline';
+import {planPipeline,constrainDecision,criteriaKeepDecision,protectionKeepDecision} from './cleanup-pipeline';
 import {estimateGroups} from './group-ai';
-import {protectionReasons} from './policy';
 
 export async function reviewModel(modelId:string,method:string) {
  const catalog=await models();const base=requireValue(catalog.find(m=>m.id===modelId),'Modell nicht im aktuellen Katalog.');
@@ -35,7 +34,7 @@ export async function previewReview(userId:string,input:{filters:unknown;config:
  }
  const personalRules=await tenant(userId,async db=>(await db.query('SELECT * FROM learned_filter_rules WHERE enabled')).rows);
  const pipeline=planPipeline(snapshot.messages,config,snapshot.rules,Date.now(),personalRules);
- const cache=chosen?await cachedPatterns(userId,pipeline.groups,chosen.base.id,config.reuseCache):new Map<string,Decision>();
+ const cache=chosen?await cachedPatterns(userId,pipeline.groups,chosen.base.id,config.reuseCache&&config.analysisMode==='grouped'):new Map<string,Decision>();
  const unresolved=pipeline.groups.filter(g=>!cache.has(g.fingerprint));
  const estimate=chosen?estimateGroups(unresolved,config,chosen.billing):{low:0,high:0,reservation:0,requests:0};
  const stats={...pipeline.stats,cachedGroups:pipeline.groups.filter(g=>cache.has(g.fingerprint)).length,aiGroups:config.method==='local'?0:unresolved.length,aiMessages:config.method==='local'?0:unresolved.reduce((n,g)=>n+g.members.length,0),requests:estimate.requests};
@@ -45,8 +44,8 @@ export async function previewReview(userId:string,input:{filters:unknown;config:
   await db.query(`INSERT INTO review_targets(user_id,run_id,message_id,message_version) SELECT $1::uuid,$2::uuid,t.id,t.version FROM jsonb_to_recordset($3::jsonb) AS t(id uuid,version int)`,[userId,id,JSON.stringify(snapshot.messages.map(m=>({id:m.id,version:m.version})))]);
  });
  const sample=pipeline.local.slice(0,12).map(x=>({subject:x.message.subject,sender:x.message.sender,action:x.decision.action,reason:x.decision.reason}));
- for(const group of pipeline.groups.slice(0,8)){const cached=cache.get(group.fingerprint);sample.push({subject:group.samples[0],sender:group.sender,action:cached?.action||'review',reason:cached?'Bereits bewertetes Muster wiederverwendet.':config.method==='local'?'Kein eindeutiger lokaler Treffer; bleibt zur Prüfung.':'Verbleibendes Muster wird gemeinsam bewertet.'});}
- return {id,expiresAt:new Date(Date.now()+900000).toISOString(),stats,estimate:{...estimate,currency:'USD',model:chosen?.base.id||'',batch:config.method==='batch'},sample,method:config.method};
+ for(const group of pipeline.groups.slice(0,8)){const cached=cache.get(group.fingerprint);sample.push({subject:group.samples[0],sender:group.sender,action:cached?.action||'review',reason:cached?'Bereits bewertetes Muster wiederverwendet.':group.localDecision?`Hybrid prüft die lokale Vorentscheidung „${group.localDecision.action}“: ${group.localDecision.reason}`:config.analysisMode==='full_ai'?'Einzelne Nachricht wird direkt durch KI bewertet.':config.method==='local'?'Kein eindeutiger lokaler Treffer; bleibt zur Prüfung.':'Verbleibendes Muster wird gemeinsam bewertet.'});}
+ return {id,expiresAt:new Date(Date.now()+900000).toISOString(),stats,estimate:{...estimate,currency:'USD',model:chosen?.base.id||'',batch:config.method==='batch'},sample,method:config.method,analysisMode:config.analysisMode};
 }
 export async function startReview(userId:string,id:string,consent:{ai:boolean;batch:boolean}) {
  return tenant(userId,async db=>{
@@ -75,15 +74,15 @@ export async function reviewSnapshot(userId:string,id:string) {
 }
 export async function applyReviewDecision(userId:string,runId:string,members:IndexedMessage[],raw:Decision,source:string,config:CleanupConfig) {
  return tenant(userId,async db=>{
-  const run=requireValue((await db.query('SELECT status FROM review_runs WHERE id=$1 FOR UPDATE',[runId])).rows[0]);
+  const run=requireValue((await db.query('SELECT status,snapshot_at FROM review_runs WHERE id=$1 FOR UPDATE',[runId])).rows[0]);
   if(!['running','waiting_batch'].includes(run.status))return 0;
   const rows=(await db.query(`SELECT m.* FROM messages m JOIN review_targets t ON t.message_id=m.id AND t.user_id=m.user_id WHERE t.run_id=$1 AND m.id=ANY($2::uuid[]) AND t.status='pending' AND m.version=t.message_version AND m.state='active' FOR UPDATE OF m,t`,[runId,members.map(m=>m.id)])).rows;
   const rules=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));let changed=0;
   for(const row of rows){
-   const reasons=protectionReasons(row,rules);
+   const criteria=criteriaKeepDecision(row,config,1,new Date(run.snapshot_at).getTime()),protectedDecision=protectionKeepDecision(row,config,rules);
    let proposed=raw;
    if(raw.reason.startsWith('Persönliche Regel ')){const current=(await db.query('SELECT * FROM learned_filter_rules WHERE enabled')).rows;proposed=personalDecision(row,current,rules)||{category:row.category,action:'review',confidence:'low',reason:'Persönliche Regel seit Planung geändert oder deaktiviert.'};}
-   const decision=reasons.length?{...proposed,action:'keep' as const,reason:reasons.join('; ')}:constrainDecision(proposed,config);
+   const decision=criteria?{...criteria,category:row.category}:protectedDecision?(config.analysisMode!=='grouped'&&proposed.action!=='keep'&&!['important','personal','security'].includes(protectedDecision.category)?{...protectedDecision,action:'review' as const,confidence:'medium' as const,reason:`KI-Zweitprüfung: ${proposed.action} vorgeschlagen (${proposed.reason}). Schutz bleibt aktiv: ${protectedDecision.reason}`} : protectedDecision):constrainDecision(proposed,config);
    if(row.recommendation!==decision.action||row.category!==decision.category)changed++;
    await db.query('UPDATE messages SET category=$2,recommendation=$3,reason=$4,decision_source=$5,decision_confidence=$6,analysis_mode=$5,analyzed_at=now(),version=version+1 WHERE id=$1',[row.id,decision.category,decision.action,decision.reason,source,decision.confidence]);
    await db.query("UPDATE review_targets SET status='applied' WHERE run_id=$1 AND message_id=$2",[runId,row.id]);

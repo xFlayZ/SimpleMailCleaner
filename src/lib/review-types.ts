@@ -16,6 +16,7 @@ export const reviewFilterSchema=z.object({
 export type ReviewFilters=z.infer<typeof reviewFilterSchema>;
 export const cleanupConfigSchema=z.object({
  method:z.enum(['local','worker','batch']).default('local'),
+ analysisMode:z.enum(['grouped','full_ai','hybrid']).default('grouped'),
  preset:z.enum(['careful','balanced','thorough','custom']).default('balanced'),
  minAgeDays:z.number().int().min(0).max(3650).default(90),
  includeUnread:z.boolean().default(false),
@@ -29,7 +30,7 @@ export const cleanupConfigSchema=z.object({
  model:z.string().max(200).default(''),
  budget:z.number().min(.01).max(100).default(1),
  maxMessages:z.number().int().min(0).max(50000).default(20000)
-});
+}).refine(v=>v.method!=='local'||v.analysisMode==='grouped',{message:'Voll-KI und Hybrid erfordern einen KI-Verarbeitungsweg.',path:['analysisMode']});
 export type CleanupConfig=z.infer<typeof cleanupConfigSchema>;
 export const defaultCleanupConfig=cleanupConfigSchema.parse({});
 export type IndexedMessage={
@@ -43,9 +44,9 @@ export type IndexedMessage={
 export type Decision={category:string;action:'keep'|'review'|'trash';reason:string;confidence:'high'|'medium'|'low'};
 export type PatternGroup={
  id:string;sender:string;pattern:string;members:IndexedMessage[];
- samples:string[];newsletter:boolean;fingerprint:string;
+ samples:string[];newsletter:boolean;fingerprint:string;localDecision?:Decision|null;
 };
 export type PipelineStats={total:number;protected:number;localDecisions:number;localTrash:number;groups:number;aiGroups:number;cachedGroups:number;aiMessages:number;requests:number};
-export type ReviewPreview={id:string;expiresAt:string;stats:PipelineStats;estimate:{low:number;high:number;reservation:number;currency:string;model:string;batch:boolean};sample:{subject:string;sender:string;action:string;reason:string}[];method:string};
+export type ReviewPreview={id:string;expiresAt:string;stats:PipelineStats;estimate:{low:number;high:number;reservation:number;currency:string;model:string;batch:boolean};sample:{subject:string;sender:string;action:string;reason:string}[];method:string;analysisMode:'grouped'|'full_ai'|'hybrid'};
 export type MessagePage={items:(IndexedMessage&{analyzed_at?:string;analysis_mode?:string|null;decision_confidence?:string})[];total:number;page:number;pageSize:number;pages:number;summary:{trash:number;keep:number;review:number;newsletters:number;senders:number}};
 export type ReviewRunView={id:string;status:string;config:CleanupConfig;model:string|null;total:number;processed:number;changed:number;skipped:number;stats:PipelineStats;estimated_low:number|string;estimated_high:number|string;cost?:number;estimated?:number;error:string|null;snapshot_at:string;completed_at:string|null;batch?:{remote_id:string|null;status:string;cleanup_status:string;error:string|null}|null};

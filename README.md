@@ -33,6 +33,7 @@ The screenshots show the application UI in demo mode with fictional mailbox data
 - Mailbox-wide search, server-side filtering and pagination, CSV export, message preview and manual category/recommendation controls.
 - Sender and newsletter grouping, protected-sender rules and reviewed bulk cleanup by newsletter, exact sender or date.
 - Optional AI-assisted re-evaluation of the existing index, saved criteria profiles, a user instruction, preview and estimated cost before a run.
+- Three AI review modes: grouped low-cost classification, hybrid AI second-opinion on local keep/trash decisions, and optional per-message full AI review. Safety rules and explicit user criteria remain in force; protected mail is never automatically trashed.
 - Cost-conscious pipeline: local rules → sender/subject grouping → per-user pattern cache → optional AI for unresolved patterns.
 - Optional OpenRouter native batch processing. Batch retention behavior is different from the standard zero-data-retention worker and requires separate consent.
 - Separate metadata, header-analysis and message-content scan modes, each with a scope and cost estimate.

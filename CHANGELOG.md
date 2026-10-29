@@ -6,6 +6,7 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Added
 
+- Added optional hybrid AI second-opinion and per-message full-AI review modes for cleanup previews. Hybrid mode checks local keep/trash candidates in groups; full-AI classifies each eligible message individually. Both bypass the pattern cache, keep explicit criteria and personal rules in force, and retain protection barriers. The preview shows exact AI scope and estimated costs.
 - Expanded personal filter dry-runs with per-condition counts, actionable/protected totals, predicted outcomes, category breakdowns and representative examples explaining matches and exclusions. New draft rules can be previewed before saving.
 - Added a newsletter-group cleanup scope that only selects messages from that exact newsletter sender/list, plus an account lock when a bulk action was opened from a single mailbox.
 - Replaced README mockup artwork with the supplied in-app dashboard and mailbox screenshots. The root route now sends signed-in users to the dashboard and everyone else to login; an explicit demo entry remains available from the login page.

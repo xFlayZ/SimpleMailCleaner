@@ -33,6 +33,7 @@ Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **
 ## Funktionen
 
 - [Intelligente Filterung und Trainingsmodus](docs/TRAINING.md): fortsetzbare Sessions, optionale Begründungen, Korrekturen, Regelvorschläge und eine Vorschau mit Trefferzahlen je Bedingung sowie Beispielen, die Treffer und Ausschlüsse erklären. Neue Regeln lassen sich vor dem Speichern prüfen. Das Training löst keine KI-Kosten oder Anbieteraktionen aus.
+- Drei optionale Prüfvarianten für den Bestand: gruppierte KI als kostensparender Standard, Hybrid-KI als Zweitmeinung zu lokalen Behalten-/Löschvorschlägen und Voll-KI mit Einzelbewertung. Schutzregeln bleiben wirksam; vor dem Start werden Umfang und Kosten angezeigt.
 - Feste Routen für Dashboard, Postfach, Papierkorb, Newsletter, Absender, Aufräumen, Aktivitäten und Einstellungen; die Demo startet erst nach explizitem Klick.
 - `/` führt angemeldete Nutzer zum Dashboard und alle anderen zur Login-Seite. Der Demo-Zugang bleibt dort als bewusste Auswahl verfügbar.
 - Das Postfach zeigt aktive erfasste E-Mails mit Suche, Filtern und Pagination. In den Papierkorb verschobene Nachrichten erscheinen nur unter `/trash`. Dashboard-Kennzahlen und Widgets können pro Browser angepasst werden.

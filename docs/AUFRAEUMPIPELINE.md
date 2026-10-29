@@ -6,7 +6,15 @@ Empfohlener Ablauf: **Dashboard → Metadaten importieren**, danach **Aufräumen
 
 1. **Lokale Regeln:** Absenderschutz, Markierungen, Anhänge, wichtige Unterlagen, Sicherheits- und Antwortbetreffzeilen sowie Ausschlussbegriffe schützen Nachrichten. Alter, Lesestatus und erlaubte Kategorien steuern Vorschläge. Häufigkeit allein genügt nicht. Newsletter-Signale stammen aus Listenheadern und eindeutigen Werbemerkmalen.
 2. **Muster:** Nur verbleibende Nachrichten desselben Kontos und Absenders mit demselben Listen- und normalisierten Betreffmuster teilen sich eine Bewertung. Zahlen, Datum und technische IDs werden normalisiert. Bis zu drei Betreffbeispiele repräsentieren ein Muster. Unterschiedliche Themen bleiben getrennt. Gruppierung kann deaktiviert werden.
-3. **Optionale KI:** Nur nicht lokal entschiedene und nicht passend gecachte Muster gehen an die KI. Kompakte nummerierte Ergebnisse enthalten eine Entscheidung je Muster. Fehlende, doppelte oder fremde Referenzen werden abgewiesen. Unsichere Aufräumvorschläge bleiben zur Prüfung. Cache pro Nutzer, Modell, Kriterien und Muster: maximal 30 Tage.
+3. **Optionale KI:** Standardmäßig gehen nur nicht lokal entschiedene und nicht passend gecachte Muster an die KI. Kompakte nummerierte Ergebnisse enthalten eine Entscheidung je Muster. Fehlende, doppelte oder fremde Referenzen werden abgewiesen. Unsichere Aufräumvorschläge bleiben zur Prüfung. Cache pro Nutzer, Modell, Kriterien und Muster: maximal 30 Tage.
+
+## Optionale Prüfmodi
+
+- **Gruppierte KI** bleibt der sparsame Standard. Feste Kriterien, persönliche Regeln und Schutzgründe werden zuerst lokal angewendet. Nur übrige Muster werden an die KI gesendet; passende Cache-Ergebnisse können wiederverwendet werden.
+- **Hybrid · lokale Entscheidung prüfen** lässt die KI nach der lokalen Vorbewertung auch deren Behalten- und Löschvorschläge prüfen. Ähnliche Nachrichten bleiben gruppiert. Explizite Kriterien und bestätigte persönliche Regeln bleiben verbindlich. Metadaten geschützter Nachrichten können mit Einwilligung für die Zweitprüfung übertragen werden; bei einem KI-Widerspruch wird höchstens eine manuelle Prüfung vorgeschlagen. Der Schutz bleibt aktiv. Der Cache ist aus, damit die Vorentscheidung tatsächlich neu geprüft wird.
+- **Voll-KI · jede Nachricht einzeln** überspringt lokale Heuristik-Entscheidungen und erzeugt eine einzelne Bewertung für jede Nachricht, die nicht durch feste Kriterien oder persönliche Regeln ausgeschlossen wurde. Auch geschützte Metadaten können zur Prüfung übertragen werden. Ein KI-Vorschlag hebt den Schutz niemals auf. Der Cache und die Betreffgruppierung sind aus; dies kann deutlich teurer sein.
+
+Alle Modi verwenden nur Absender, Betreff und Empfangsalter, keinen Nachrichtentext. Mindestalter, Lesestatus, Ein-/Ausschlussbegriffe und bestätigte persönliche Regeln bleiben Grenzen. Vorschau, KI-Anzahl, Anfragen und Kostenspanne werden vor Freigabe angezeigt. Eine Bewertung verschiebt keine E-Mail; dafür ist weiterhin eine separate Freigabe erforderlich.
 
 „High / medium / low“ ist keine kalibrierte Wahrscheinlichkeit. Es gibt weder eine garantierte Newsletter-Erkennung noch eine gewünschte Löschquote. Wenige Vorschläge können sachlich richtig sein. Filter und Kriterien helfen bei der gezielten Entscheidung.
 
@@ -17,6 +25,7 @@ Empfohlener Ablauf: **Dashboard → Metadaten importieren**, danach **Aufräumen
 | Lokale Regeln | Keine KI-Kosten, keine Übermittlung |
 | Gruppierte KI im Worker | Standardtarif; ZDR und Ausschluss von Datensammlung werden angefordert |
 | Anbieter-Batch | Nur bei vorhandener `:batch`-Preisvariante; gesonderte Einwilligung ohne ZDR |
+| Hybrid / Voll-KI | Frische Zweitprüfung ohne Muster-Cache; Voll-KI bewertet jede zugelassene Nachricht einzeln und ist meist am teuersten |
 
 Ein Worker oder das Sammeln von HTTP-Anfragen senkt nicht automatisch die Tokenkosten. Lokale Entscheidungen, gemeinsame Musterbewertung, kompakte Ein-/Ausgaben und Cache-Treffer sparen Token. Bei 12.000 gleichen, nur durchnummerierten Testbetreffzeilen reicht ein Muster. Bei 12.000 unterschiedlichen Themen ist die Einsparung geringer. Das Testbeispiel ist keine Prognose für ein konkretes Postfach.
 

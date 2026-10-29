@@ -18,7 +18,7 @@ export async function reviewJob(job:{user_id:string;ref_id:string},overrides:Par
   const localGroups=new Map<string,{members:typeof messages;decision:Decision}>();
   for(const entry of plan.local){const key=JSON.stringify(entry.decision),group=localGroups.get(key)||{members:[],decision:entry.decision};group.members.push(entry.message);localGroups.set(key,group);}
   for(const group of localGroups.values())for(let start=0;start<group.members.length;start+=100){await check();await applyReviewDecision(job.user_id,run.id,group.members.slice(start,start+100),group.decision,'rules',config);}
-  const cache=await cachedPatterns(job.user_id,plan.groups,run.model||'',config.reuseCache);
+  const cache=await cachedPatterns(job.user_id,plan.groups,run.model||'',config.reuseCache&&config.analysisMode==='grouped');
   const pending:PatternGroup[]=[];
   for(const group of plan.groups){
    const result=cache.get(group.fingerprint);
