@@ -1,3 +1,4 @@
+import {personalDecision} from './personal-filter';
 import { randomUUID } from 'node:crypto';
 import { tenant,event } from './db';
 import { adapter } from './mail';
@@ -36,9 +37,10 @@ export async function scanJob(job:Job,overrides:Partial<Dependencies>={}) {
   await tenant(job.user_id,db=>db.query(`UPDATE messages SET category=$2,recommendation=$3,reason=$4,analyzed_at=now(),analysis_mode=$5,analysis_model=$6,analysis_fingerprint=$7,${column}=$8,version=version+1 WHERE id=$1`,[id,result.category,safeAction,result.reason,mode,model!.id,fingerprint,{...result,_model:model!.id,_fingerprint:fingerprint}]));
  };
  try {
-  const messages=await mail.list(new Date(Date.now()-scan.days*86400000),scan.max_messages);
+  const messages=await mail.list(new Date(scan.days===0?0:Date.now()-scan.days*86400000),scan.max_messages,{check:checkCancelled,progress:async count=>{await checkCancelled();await tenant(job.user_id,db=>db.query('UPDATE scans SET total=$2 WHERE id=$1',[scan.id,count]));}});
   await tenant(job.user_id,db=>db.query('UPDATE scans SET total=$2 WHERE id=$1',[scan.id,messages.length]));
   const rules=await tenant(job.user_id,async db=>new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender)));
+  const personalRules=await tenant(job.user_id,async db=>(await db.query('SELECT * FROM learned_filter_rules WHERE enabled AND account_id=$1',[account.id])).rows);
   let index=0;const importedIds:string[]=[];
   for(const m of messages) {
    if(index++%20===0)await checkCancelled();
@@ -56,6 +58,9 @@ export async function scanJob(job:Job,overrides:Partial<Dependencies>={}) {
     RETURNING *`,[randomUUID(),job.user_id,account.id,m.remoteId,m.folder,m.sender,m.subject,m.receivedAt,m.size,m.isRead,m.flagged,m.hasAttachments,m.listId,initialCategory(m.listId,m.subject),protections.length>0,protections.join('; '),Boolean(m.newsletterSignal||m.listId)])).rows[0]);
    importedIds.push(row.id);
    const reasons=protectionReasons(row,rules);
+   const candidate=personalDecision(row,personalRules,rules);
+   const personal=candidate?await tenant(job.user_id,async db=>personalDecision(row,(await db.query('SELECT * FROM learned_filter_rules WHERE enabled AND account_id=$1',[account.id])).rows,rules)):null;
+   if(personal){await tenant(job.user_id,db=>db.query("UPDATE messages SET recommendation=$2,reason=$3,decision_source='rules',analysis_mode='rules',decision_confidence=$4,analyzed_at=now(),version=version+1 WHERE id=$1",[row.id,personal.action,personal.reason,personal.confidence]));await progress(1,1);continue;}
    if(!model){await progress();continue;}
    if(reasons.length) {
     await tenant(job.user_id,db=>db.query("UPDATE messages SET recommendation='keep',reason=$2,analysis_mode='rules',analyzed_at=now(),version=version+1 WHERE id=$1",[row.id,reasons.join('; ')]));

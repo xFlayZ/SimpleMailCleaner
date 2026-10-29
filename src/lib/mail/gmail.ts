@@ -1,3 +1,4 @@
+import type {ListingObserver} from './types';
 import { jsonRequest } from '../http';
 import { AppError } from '../errors';
 import { headerMap, parseContent, senderAddress, MAX_RAW,newsletterHeaderSignal } from './parse';
@@ -7,19 +8,27 @@ export class GmailAdapter implements MailAdapter {
  private async request(path:string,method='GET',body?:unknown) {
   return jsonRequest(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`,{method,headers:{Authorization:`Bearer ${this.access}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
  }
- async list(since:Date,max:number) {
+ async list(since:Date,max:number,observer:ListingObserver={}) {
+  const limit=max===0?Infinity:max;
   const messages:MailMessage[]=[];let page='';
   do {
-   const params=new URLSearchParams({maxResults:String(Math.min(100,max-messages.length)),q:`in:inbox after:${Math.floor(since.getTime()/1000)}`});
+   await observer.check?.();
+   const params=new URLSearchParams({maxResults:String(Math.min(100,limit-messages.length)),q:since.getTime()===0?'in:inbox':`in:inbox after:${Math.floor(since.getTime()/1000)}`});
    if(page)params.set('pageToken',page);
    const result=await this.request(`messages?${params}`);
-   for(const entry of result.messages||[]) {
+   const entries=result.messages||[];
+   for(let offset=0;offset<entries.length;offset+=5){
+    await observer.check?.();
+    const page=await Promise.all(entries.slice(offset,offset+5).map(async(entry:{id:string})=> {
     const msg=await this.request(`messages/${encodeURIComponent(entry.id)}?format=metadata`);
     const headers=headerMap(msg.payload?.headers||[]),labels:string[]=msg.labelIds||[];
-    messages.push({remoteId:msg.id,folder:'INBOX',sender:senderAddress(headers.from||''),subject:(headers.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:new Date(Number(msg.internalDate)).toISOString(),size:msg.sizeEstimate||0,isRead:!labels.includes('UNREAD'),flagged:labels.includes('STARRED')||labels.includes('IMPORTANT'),hasAttachments:Boolean(msg.payload?.parts?.some((p:{filename?:string})=>p.filename)),listId:headers['list-id']||null,newsletterSignal:newsletterHeaderSignal(headers)});
+    return {remoteId:msg.id,folder:'INBOX',sender:senderAddress(headers.from||''),subject:(headers.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:new Date(Number(msg.internalDate)).toISOString(),size:msg.sizeEstimate||0,isRead:!labels.includes('UNREAD'),flagged:labels.includes('STARRED')||labels.includes('IMPORTANT'),hasAttachments:Boolean(msg.payload?.parts?.some((p:{filename?:string})=>p.filename)),listId:headers['list-id']||null,newsletterSignal:newsletterHeaderSignal(headers)};
+    }));
+    messages.push(...page);
+    await observer.progress?.(messages.length);
    }
    page=result.nextPageToken||'';
-  }while(page&&messages.length<max);
+  }while(page&&messages.length<limit);
   return messages;
  }
  async content(id:string) {

@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { encrypt,decrypt,passwordHash,passwordMatches,deviceSignature,validSignature } from '../src/lib/crypto';
 import { protectionReasons } from '../src/lib/policy';
 import { publicIPv4,unsubscribeTarget,verifiedUnsubscribe } from '../src/lib/unsubscribe';
-import { analysisSchema,estimate,modelReason } from '../src/lib/ai';
+import { analysisSchema,estimate,modelReason,completionParameters } from '../src/lib/ai';
 import { decodeRef,encodeRef,ImapAdapter } from '../src/lib/mail/imap';
 describe('Verschlüsselung und Zugang',()=>{
  beforeEach(()=>{process.env.ENCRYPTION_KEY=randomBytes(32).toString('base64');});
@@ -32,6 +32,9 @@ describe('Schutzregeln und KI',()=>{
  it('berechnet eine konservative Reservierung inklusive Anfragekosten',()=>{
   const m={id:'test',name:'test',context_length:32000,pricing:{prompt:'0.000001',completion:'0.000002',request:'0.01'},architecture:{input_modalities:['text'],output_modalities:['text']},supported_parameters:['response_format']};
   expect(estimate(m,1000)).toBeCloseTo((.003+.0014+.01)*1.25);expect(modelReason(m)).toBeNull();expect(modelReason({...m,supported_parameters:[]})).toBeTruthy();
+  expect(modelReason({...m,id:'google/gemini-2.5-flash-lite'})).toContain('abgekündigt');
+  expect(completionParameters('openai/gpt-6-luna',80)).toEqual({max_completion_tokens:80});
+  expect(completionParameters('google/gemini-3.1-flash-lite',80)).toEqual({max_tokens:80,temperature:0});
  });
 });
 describe('Abmeldeziele und Authentizität',()=>{

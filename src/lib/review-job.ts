@@ -9,12 +9,12 @@ import type {Decision,PatternGroup,CleanupConfig} from './review-types';
 type Dependencies={classify:typeof analyzeGroups;submitBatch:typeof submitAsyncBatch};
 export async function reviewJob(job:{user_id:string;ref_id:string},overrides:Partial<Dependencies>={}) {
  const deps={classify:analyzeGroups,submitBatch:submitAsyncBatch,...overrides};
- const {run,messages,rules,config}=await reviewSnapshot(job.user_id,job.ref_id);
+ const {run,messages,rules,personalRules,config}=await reviewSnapshot(job.user_id,job.ref_id);
  if(!run.approved_at||run.status!=='queued')throw new AppError(409,'Keine gültige Neubewertung.');
  await tenant(job.user_id,db=>db.query("UPDATE review_runs SET status='running' WHERE id=$1 AND status='queued'",[run.id]));
  const check=async()=>{const result=await tenant(job.user_id,async db=>(await db.query('SELECT status FROM review_runs WHERE id=$1',[run.id])).rows[0]);if(!result||result.status!=='running')throw new AppError(409,'Neubewertung gestoppt.');};
  try {
-  const plan=planPipeline(messages,config,rules,new Date(run.snapshot_at).getTime());
+  const plan=planPipeline(messages,config,rules,new Date(run.snapshot_at).getTime(),personalRules);
   const localGroups=new Map<string,{members:typeof messages;decision:Decision}>();
   for(const entry of plan.local){const key=JSON.stringify(entry.decision),group=localGroups.get(key)||{members:[],decision:entry.decision};group.members.push(entry.message);localGroups.set(key,group);}
   for(const group of localGroups.values())for(let start=0;start<group.members.length;start+=100){await check();await applyReviewDecision(job.user_id,run.id,group.members.slice(start,start+100),group.decision,'rules',config);}

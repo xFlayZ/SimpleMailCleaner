@@ -28,7 +28,7 @@ export const cleanupConfigSchema=z.object({
  userInstruction:z.string().trim().max(2000).default(''),
  model:z.string().max(200).default(''),
  budget:z.number().min(.01).max(100).default(1),
- maxMessages:z.number().int().min(1).max(50000).default(20000)
+ maxMessages:z.number().int().min(0).max(50000).default(20000)
 });
 export type CleanupConfig=z.infer<typeof cleanupConfigSchema>;
 export const defaultCleanupConfig=cleanupConfigSchema.parse({});

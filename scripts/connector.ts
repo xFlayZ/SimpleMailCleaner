@@ -38,7 +38,7 @@ while(!stopping) {
     let mail:ImapAdapter|undefined;
     try {
      mail=await new ImapAdapter(config).connect();let data:unknown;
-     if(task.kind==='list'){const a=z.object({since:z.iso.datetime(),max:z.number().int().min(1).max(20000)}).parse(task.payload.args);data=await mail.list(new Date(a.since),a.max);}
+     if(task.kind==='list'){const a=z.object({since:z.iso.datetime(),max:z.number().int().min(0).max(20000)}).parse(task.payload.args);data=await mail.list(new Date(a.since),a.max);}
      else if(task.kind==='content'){const a=z.object({remoteId:z.string().max(4000)}).parse(task.payload.args);const c=await mail.content(a.remoteId);data={text:c.text,raw:c.raw.toString('base64')};}
      else if(task.kind==='guard'){const a=z.object({remoteId:z.string().max(4000)}).parse(task.payload.args);data=await mail.guard(a.remoteId);}
      else if(task.kind==='trash'){const a=z.object({remoteId:z.string().max(4000)}).parse(task.payload.args);data=await mail.trash(a.remoteId);}

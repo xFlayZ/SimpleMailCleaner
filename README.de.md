@@ -2,6 +2,8 @@
 
 [English README](README.md) · [Changelog](CHANGELOG.md)
 
+**Selbst hosten:** [Coolify-Setup auf Deutsch](docs/COOLIFY_DE.md) · [Coolify setup in English](docs/COOLIFY_EN.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-2f6b50.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-222222.svg)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%2B-4169E1.svg)](https://www.postgresql.org/)
@@ -34,6 +36,7 @@ Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **
 
 ## Funktionen
 
+- [Intelligente Filterung und Trainingsmodus](docs/TRAINING.md): fortsetzbare Sessions, optionale Begründungen, Korrekturen, bestätigungspflichtige Regelvorschläge sowie Regelverwaltung mit Vorschau und Versionsrücknahme unter `/training`. Das Training löst keine KI-Kosten oder Anbieteraktionen aus.
 - Feste Routen für Dashboard, Postfach, Newsletter, Absender, Aufräumen, Aktivitäten und Einstellungen; die Demo startet erst nach explizitem Klick.
 - Das Postfach zeigt alle erfassten E-Mails mit Suche, Filtern und Pagination. Dashboard-Kennzahlen und Widgets können pro Browser angepasst werden.
 - Warteschlange im Aktivitätsverlauf pausieren/fortsetzen, abgeschlossene Historie leeren und sichere lokale Vorgänge erneut starten.
@@ -62,7 +65,7 @@ Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **
 
 | Verfahren | Daten / Umfang |
 | --- | --- |
-| Kostenloser Metadatenimport | Absender, Betreff, Datum und Schutz-/Listenmerkmale; bis 20.000 je Import |
+| Kostenloser Metadatenimport | Absender, Betreff, Datum und Schutz-/Listenmerkmale; Zahlenbegrenzung oder **Alle Nachrichten / Alle Zeiträume** im Posteingang |
 | Bestand neu bewerten | Lokale Regeln und optional gruppierte KI; bis 50.000 bereits erfasste Nachrichten |
 | Separater Inhaltsscan | Zusätzlich Textausschnitte; bis 500 Nachrichten, eigene Einwilligung |
 

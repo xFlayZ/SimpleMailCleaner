@@ -1,3 +1,5 @@
+import {scanInputSchema} from '@/lib/scan-input';
+import {createPersonalRule,trainingState,startTraining,trainFeedback,trainingPause,personalRuleAction} from '@/lib/training';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { z,ZodError } from 'zod';
@@ -37,6 +39,12 @@ async function handle(request:Request,{params}:{params:Promise<{path:string[]}>}
    const data=credentials.parse(await body(request));return NextResponse.json(await authenticate(data.email,data.password,route.endsWith('register')));
   }
   const user=await requireSession();
+  if(route==='training'&&method==='GET')return NextResponse.json(await trainingState(user.id,uuid.parse(new URL(request.url).searchParams.get('accountId'))));
+  if(route==='training/start'&&method==='POST')return NextResponse.json(await startTraining(user.id,await body(request)));
+  if(route==='training/feedback'&&method==='POST')return NextResponse.json(await trainFeedback(user.id,await body(request)));
+  if(route==='training/pause'&&method==='POST')return NextResponse.json(await trainingPause(user.id,await body(request)));
+  if(route==='training/rule-create'&&method==='POST')return NextResponse.json(await createPersonalRule(user.id,await body(request)));
+  if(route==='training/rule'&&method==='POST')return NextResponse.json(await personalRuleAction(user.id,await body(request)));
   if(route==='activity/pause'&&method==='POST'){const data=z.object({paused:z.boolean()}).parse(await body(request));await tenant(user.id,async db=>{await db.query('INSERT INTO settings(user_id) VALUES($1) ON CONFLICT DO NOTHING',[user.id]);await db.query('UPDATE settings SET activity_paused=$2 WHERE user_id=$1',[user.id,data.paused]);});return NextResponse.json({ok:true,paused:data.paused});}
   if(route==='activity/clear'&&method==='POST')return NextResponse.json(await tenant(user.id,async db=>{const active=(await db.query("SELECT (SELECT count(*) FROM scans WHERE status IN ('queued','running','waiting_connector'))+(SELECT count(*) FROM review_runs WHERE status IN ('queued','running','waiting_batch'))+(SELECT count(*) FROM plans WHERE status IN ('approved','executing')) AS n")).rows[0].n;if(Number(active))throw new AppError(409,'Aktive Vorgänge erst beenden oder pausieren.');await db.query('DELETE FROM events');await db.query("DELETE FROM jobs WHERE status<>'running'");await db.query("DELETE FROM scans WHERE status NOT IN ('queued','running','waiting_connector')");await db.query("DELETE FROM review_runs r WHERE r.status NOT IN ('queued','running','waiting_batch') AND NOT EXISTS(SELECT 1 FROM ai_batches b WHERE b.run_id=r.id AND (b.status<>'completed' OR b.cleanup_status='pending'))");await db.query("DELETE FROM plans WHERE status NOT IN ('approved','executing')");return {ok:true};}));
   if(path[0]==='scans'&&path[2]==='retry'&&method==='POST'){const old=await tenant(user.id,async db=>requireValue((await db.query("SELECT account_id,mode,days,max_messages,status FROM scans WHERE id=$1",[uuid.parse(path[1])])).rows[0]));if(!['failed','cancelled','interrupted','needs_attention'].includes(old.status))throw new AppError(409,'Nur fehlgeschlagene oder abgebrochene Scans lassen sich neu starten.');if(old.mode!=='metadata')throw new AppError(409,'KI-Scans bitte über „Aufräumen“ mit neuer Kostenvorschau und ausdrücklicher Freigabe erneut starten.');return NextResponse.json(await startScan(user.id,old.account_id,old.mode,old.days,old.max_messages));}
@@ -118,7 +126,7 @@ async function handle(request:Request,{params}:{params:Promise<{path:string[]}>}
    return NextResponse.redirect(new URL('/?connection=success',process.env.APP_URL));
   }
   if((route==='scans'||route==='scans/estimate')&&method==='POST') {
-   const data=z.object({accountId:uuid,mode:z.enum(['metadata','ai_headers','ai']),days:z.number().int().min(1).max(3650),max:z.number().int().min(1).max(20000),confirmAi:z.boolean().default(false),confirmContent:z.boolean().default(false)}).refine(d=>d.mode!=='ai'||d.max<=500,{message:'Inhaltsscan auf 500 Nachrichten begrenzt.'}).parse(await body(request));
+   const data=scanInputSchema.parse(await body(request));
    if(route==='scans/estimate')return NextResponse.json(await scanEstimate(user.id,data.accountId,data.mode,data.days,data.max));
    return NextResponse.json(await startScan(user.id,data.accountId,data.mode,data.days,data.max,{ai:data.confirmAi,content:data.confirmContent}));
   }

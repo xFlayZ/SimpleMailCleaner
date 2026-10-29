@@ -1,3 +1,4 @@
+import {personalDecision,type PersonalRule} from './personal-filter';
 import {digest} from './crypto';
 import {protectionReasons} from './policy';
 import type {CleanupConfig,Decision,IndexedMessage,PatternGroup,PipelineStats} from './review-types';
@@ -45,11 +46,12 @@ export function constrainDecision(decision:Decision,config:CleanupConfig):Decisi
 export function criteriaFingerprint(config:CleanupConfig) {
  return digest(JSON.stringify({v:3,userInstruction:config.userInstruction||'',minAgeDays:config.minAgeDays,includeUnread:config.includeUnread,newsletters:config.newsletters,promotions:config.promotions,notifications:config.notifications,includeTerms:[...config.includeTerms].sort(),excludeTerms:[...config.excludeTerms].sort()}));
 }
-export function planPipeline(messages:IndexedMessage[],config:CleanupConfig,protectedSenders:Set<string>,now=Date.now()) {
+export function planPipeline(messages:IndexedMessage[],config:CleanupConfig,protectedSenders:Set<string>,now=Date.now(),personalRules:PersonalRule[]=[]) {
  const counts=new Map<string,number>();for(const m of messages)counts.set(m.sender,(counts.get(m.sender)||0)+1);
  const local:{message:IndexedMessage;decision:Decision}[]=[],groups=new Map<string,PatternGroup>();
  for(const message of messages) {
-  const decision=localDecision(message,config,protectedSenders,counts.get(message.sender)||1,now);
+  const base=localDecision(message,config,protectedSenders,counts.get(message.sender)||1,now);
+  const decision=base?.action==='keep'?base:personalDecision(message,personalRules,protectedSenders,now)||base;
   if(decision){local.push({message,decision});continue;}
   const pattern=subjectPattern(message.subject);
   const key=config.groupPatterns?`${message.account_id}|${message.sender}|${message.list_id||''}|${pattern}`:message.id;

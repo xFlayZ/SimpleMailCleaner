@@ -8,6 +8,8 @@
 
 [German README](README.de.md) · [Changelog](CHANGELOG.md) · [Security policy](SECURITY.md) · [Operating status and limitations](docs/BETRIEB.md)
 
+**Self-hosting:** [Deploy with Coolify (English)](docs/COOLIFY_EN.md) · [Coolify mit deutscher Anleitung](docs/COOLIFY_DE.md)
+
 > **Project status:** early, self-hosted release for local and controlled multi-user testing. Provider adapters are implemented, but provider-specific end-to-end testing, OAuth verification and an independent security audit are still outstanding. This project is not a hosted SaaS service. Read the [current operating notes](docs/BETRIEB.md) before connecting a real mailbox.
 
 ## Screenshots
@@ -28,6 +30,7 @@ The previews below use fictional mailbox data; they contain no user messages or 
 
 ## Features
 
+- Personal [training mode and intelligent filters](docs/TRAINING.md): resumable sessions, optional reasons, correction feedback, inactive rule suggestions, dry-runs and versioned rule management. Metadata rules run before external AI; training itself has no API charges or provider actions.
 - Dashboard with indexed-message, newsletter, cleanup-suggestion, sender, unclassified-message and AI-usage metrics. Widgets can be hidden or reordered per browser.
 - Dedicated routes for Dashboard, Mailbox, Newsletters, Senders, Cleanup, Activity and Settings.
 - Mailbox-wide search, server-side filtering and pagination, CSV export, message preview and manual category/recommendation controls.
@@ -60,7 +63,7 @@ Adapter support is not provider certification. IMAP trash actions require an ide
 
 | Mode | Data sent / scope |
 | --- | --- |
-| Metadata import | Sender, subject, date and mail/list flags. No AI call; up to 20,000 messages per import. |
+| Metadata import | Sender, subject, date and mail/list flags. No AI call; a numeric limit or **All messages / All date ranges** for the inbox. |
 | Header analysis | Sender, subject and date sent to the selected model; up to 20,000 messages per scan, with local filtering, grouping and cache reuse. |
 | Re-evaluate indexed mail | Local rules first, then grouped sender/subject patterns; AI is optional and only receives unresolved metadata groups. |
 | Message-content scan | Text excerpts are a separate, explicit mode limited to 500 messages. Attachments are not analyzed. |
@@ -108,6 +111,7 @@ For Gmail and Outlook, create an OAuth application with the exact callback URLs 
 | `/senders` | Recurring senders and sender protection |
 | `/cleanup` | Review and cleanup suggestions |
 | `/activity` | Jobs, action history and results |
+| `/training` | Personal training, learning progress and filter rules |
 | `/settings` | Mailboxes, OpenRouter and account controls |
 | `/login` | Sign in or register |
 

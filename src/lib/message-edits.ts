@@ -1,3 +1,4 @@
+import {correctionFeedback,suggestRules} from './training';
 import {z} from 'zod';
 import {tenant} from './db';
 import {AppError} from './errors';
@@ -30,6 +31,8 @@ export async function applyMessageEdit(userId:string,input:unknown){
   const versions=new Map(edit.targets.map(t=>[t.id,t.version]));const eligible=rows.filter(m=>m.state==='active'&&m.version===versions.get(m.id));
   const rules=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));
   if(edit.recommendation==='trash'&&edit.protection!=='unprotect'&&eligible.some(m=>protectionReasons(m,rules).length))throw new AppError(409,'Geschützte Nachrichten enthalten. Schutz separat ausdrücklich aufheben.');
+  for(const m of eligible)if(edit.recommendation||edit.category)await correctionFeedback(db,userId,m,edit.recommendation||m.recommendation);
+  for(const account of new Set<string>(eligible.map(m=>m.account_id)))await suggestRules(db,userId,account);
   const result=await db.query(`UPDATE messages SET category=coalesce($2,category),recommendation=CASE WHEN $3='protect' THEN 'keep' ELSE coalesce($4,recommendation) END,
    protected=CASE WHEN $3='protect' THEN true WHEN $3='unprotect' THEN false ELSE protected END,
    protection_override=CASE WHEN $3='unprotect' THEN true WHEN $3='protect' THEN false ELSE protection_override END,

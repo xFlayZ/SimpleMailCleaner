@@ -1,3 +1,4 @@
+import {scanInputSchema} from './scan-input';
 import { randomUUID } from 'node:crypto';
 import { tenant,pool } from './db';
 import { encrypt,digest } from './crypto';
@@ -30,6 +31,7 @@ export async function dashboard(userId:string) {
  return {...data,...await aggregateOverview(userId),devices,configured:{google:Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),microsoft:Boolean(process.env.MICROSOFT_CLIENT_ID&&process.env.MICROSOFT_CLIENT_SECRET)},writesPaused:Boolean(data.settings.activity_paused)};
 }
 export async function scanEstimate(userId:string,accountId:string,mode:ScanMode,days:number,max:number):Promise<ScanEstimate> {
+ scanInputSchema.parse({accountId,mode,days,max});
  const snapshot=await tenant(userId,async db=>{
   requireValue((await db.query('SELECT id FROM accounts WHERE id=$1',[accountId])).rows[0]);
   const settings=requireValue((await db.query('SELECT * FROM settings WHERE user_id=$1',[userId])).rows[0]);
@@ -48,6 +50,7 @@ export async function scanEstimate(userId:string,accountId:string,mode:ScanMode,
  return {mode,model:settings.model,requested:max,estimatedMessages:count,knownMessages:rows.length,skipped,...(model?estimateScanCost(model,count,mode,metadataBytes):{calls:0,low:0,high:0,reservation:0}),scanBudget:Number(settings.scan_budget),monthlyBudget:Number(settings.monthly_budget),availableBudget:Math.max(0,Number(settings.monthly_budget)-snapshot.used),priceAt:new Date().toISOString(),basis:rows.length>=max?'Bereich aus dem vorhandenen Index; unveränderte Schnellbewertungen und geschützte Nachrichten abgezogen.':'Hochrechnung für die maximale Auswahl; tatsächliche Trefferzahl und Textlängen werden erst im Scan bekannt.'};
 }
 export async function startScan(userId:string,accountId:string,mode:ScanMode,days:number,max:number,consent:{ai?:boolean;content?:boolean}={}) {
+ scanInputSchema.parse({accountId,mode,days,max});
  if(mode!=='metadata'&&!consent.ai)throw new AppError(422,'KI-Übermittlung muss für diesen Scan ausdrücklich bestätigt werden.');
  if(mode==='ai'&&!consent.content)throw new AppError(422,'Inhaltsscan benötigt eine gesonderte Bestätigung.');
  if(max>(mode==='ai'?500:20000))throw new AppError(422,'Zu viele Nachrichten für diese Analyseart.');

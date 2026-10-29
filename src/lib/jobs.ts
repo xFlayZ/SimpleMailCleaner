@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { tenant,pool } from './db';
 import { adapter } from './mail';
-import { AppError,requireValue,publicError } from './errors';
+import { AppError,requireValue,publicError,errorDiagnostic } from './errors';
 import { protectionReasons } from './policy';
 import { verifiedUnsubscribe,sendUnsubscribe } from './unsubscribe';
 import { decrypt } from './crypto';
@@ -107,6 +107,7 @@ export async function workOnce() {
   }else if(job.kind==='review')await reviewJob(job);else await actionJob(job);
   await tenant(job.user_id,db=>db.query("UPDATE jobs SET status='completed' WHERE id=$1",[job.id]));
  }catch(error) {
+  console.error('Worker-Auftrag fehlgeschlagen',{kind:job.kind,jobId:job.id,...errorDiagnostic(error)});
   await tenant(job.user_id,async db=>{
    await db.query("UPDATE jobs SET status='failed',error=$2 WHERE id=$1",[job.id,publicError(error)]);
    if(job.kind==='scan')await db.query("UPDATE scans SET status=CASE WHEN status='cancelled' THEN status ELSE 'failed' END,error=$2,completed_at=now() WHERE id=$1",[job.ref_id,publicError(error)]);

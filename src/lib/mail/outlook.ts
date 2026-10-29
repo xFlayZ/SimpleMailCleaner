@@ -1,3 +1,4 @@
+import type {ListingObserver} from './types';
 import { jsonRequest,readLimited } from '../http';
 import { AppError } from '../errors';
 import { parseContent,headerMap,MAX_RAW,newsletterHeaderSignal } from './parse';
@@ -8,16 +9,19 @@ export class OutlookAdapter implements MailAdapter {
  private async request(path:string,method='GET',body?:unknown) {
   return jsonRequest(`https://graph.microsoft.com/v1.0/${path}`,{method,headers:this.headers(),body:body?JSON.stringify(body):undefined});
  }
- async list(since:Date,max:number) {
+ async list(since:Date,max:number,observer:ListingObserver={}) {
+  const limit=max===0?Infinity:max;
   const messages:MailMessage[]=[];
-  let path=`me/mailFolders/inbox/messages?${new URLSearchParams({'$top':String(Math.min(100,max)),'$filter':`receivedDateTime ge ${since.toISOString()}`,'$select':'id,subject,from,receivedDateTime,isRead,flag,hasAttachments,parentFolderId,internetMessageHeaders','$orderby':'receivedDateTime desc'})}`;
-  while(path&&messages.length<max) {
+  let path=`me/mailFolders/inbox/messages?${new URLSearchParams({'$top':String(Math.min(100,limit)),...(since.getTime()===0?{}:{'$filter':`receivedDateTime ge ${since.toISOString()}`}),'$select':'id,subject,from,receivedDateTime,isRead,flag,hasAttachments,parentFolderId,internetMessageHeaders','$orderby':'receivedDateTime desc'})}`;
+  while(path&&messages.length<limit) {
+   await observer.check?.();
    const result=await this.request(path);
    for(const msg of result.value||[]) {
-    if(messages.length>=max)break;
+    if(messages.length>=limit)break;
     const h=headerMap(msg.internetMessageHeaders||[]);
     messages.push({remoteId:msg.id,folder:msg.parentFolderId,sender:msg.from?.emailAddress?.address?.toLowerCase()||'',subject:(msg.subject||'(Ohne Betreff)').slice(0,1000),receivedAt:msg.receivedDateTime,size:0,isRead:msg.isRead,flagged:msg.flag?.flagStatus==='flagged',hasAttachments:msg.hasAttachments,listId:h['list-id']||null,newsletterSignal:newsletterHeaderSignal(h)});
    }
+   await observer.progress?.(messages.length);
    const next=result['@odata.nextLink'];
    if(next && !next.startsWith('https://graph.microsoft.com/v1.0/'))throw new AppError(502,'Ungültiger Graph-Fortsetzungslink.');
    path=next?next.slice('https://graph.microsoft.com/v1.0/'.length):'';

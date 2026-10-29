@@ -26,7 +26,7 @@ export class ImapAdapter implements MailAdapter {
   try {
    if(!this.client.mailbox)return [];
    const validity=String(this.client.mailbox.uidValidity);
-   const found=await this.client.search({since,deleted:false},{uid:true});
+   const found=await this.client.search({...(since.getTime()===0?{}:{since}),deleted:false},{uid:true});
    const uids=(found||[]).slice(-max).reverse();
    if(!uids.length)return [];
    const result:MailMessage[]=[];

@@ -1,3 +1,4 @@
+import {personalDecision} from './personal-filter';
 import {randomUUID} from 'node:crypto';
 import {tenant} from './db';
 import {AppError,requireValue} from './errors';
@@ -24,7 +25,7 @@ export async function cachedPatterns(userId:string,groups:PatternGroup[],model:s
 export async function previewReview(userId:string,input:{filters:unknown;config:unknown;ids?:string[]}):Promise<ReviewPreview> {
  const filters=reviewFilterSchema.parse(input.filters),config=cleanupConfigSchema.parse(input.config);
  if(filters.state!=='active')throw new AppError(422,'Neubewertung nur für aktive Nachrichten möglich.');
- const snapshot=await tenant(userId,async db=>({messages:await matchingMessages(db,filters,config.maxMessages,input.ids),rules:new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender)),settings:requireValue((await db.query('SELECT * FROM settings WHERE user_id=$1',[userId])).rows[0])}));
+ const snapshot=await tenant(userId,async db=>({messages:await matchingMessages(db,filters,config.maxMessages||50000,input.ids),rules:new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender)),settings:requireValue((await db.query('SELECT * FROM settings WHERE user_id=$1',[userId])).rows[0])}));
  if(!snapshot.messages.length)throw new AppError(422,'Keine Nachrichten passen zu dieser Auswahl.');
  config.model=config.model||snapshot.settings.model;
  let chosen:{base:Model;billing:Model}|null=null;
@@ -32,7 +33,8 @@ export async function previewReview(userId:string,input:{filters:unknown;config:
   if(!snapshot.settings.api_key||!snapshot.settings.ai_consent)throw new AppError(409,'Zuerst KI-Schlüssel und Einwilligung in den Einstellungen hinterlegen.');
   chosen=await reviewModel(config.model,config.method);
  }
- const pipeline=planPipeline(snapshot.messages,config,snapshot.rules);
+ const personalRules=await tenant(userId,async db=>(await db.query('SELECT * FROM learned_filter_rules WHERE enabled')).rows);
+ const pipeline=planPipeline(snapshot.messages,config,snapshot.rules,Date.now(),personalRules);
  const cache=chosen?await cachedPatterns(userId,pipeline.groups,chosen.base.id,config.reuseCache):new Map<string,Decision>();
  const unresolved=pipeline.groups.filter(g=>!cache.has(g.fingerprint));
  const estimate=chosen?estimateGroups(unresolved,config,chosen.billing):{low:0,high:0,reservation:0,requests:0};
@@ -67,7 +69,8 @@ export async function reviewSnapshot(userId:string,id:string) {
   const run=requireValue((await db.query('SELECT * FROM review_runs WHERE id=$1',[id])).rows[0]);
   const messages=(await db.query(`SELECT m.* FROM review_targets t JOIN messages m ON m.id=t.message_id AND m.user_id=t.user_id WHERE t.run_id=$1 AND t.status='pending' AND m.version=t.message_version AND m.state='active' ORDER BY m.received_at DESC,m.id`,[id])).rows as IndexedMessage[];
   const rules=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));
-  return {run,messages,rules,config:cleanupConfigSchema.parse(run.config)};
+  const personalRules=(await db.query('SELECT * FROM learned_filter_rules WHERE enabled')).rows;
+  return {run,messages,rules,personalRules,config:cleanupConfigSchema.parse(run.config)};
  });
 }
 export async function applyReviewDecision(userId:string,runId:string,members:IndexedMessage[],raw:Decision,source:string,config:CleanupConfig) {
@@ -77,7 +80,10 @@ export async function applyReviewDecision(userId:string,runId:string,members:Ind
   const rows=(await db.query(`SELECT m.* FROM messages m JOIN review_targets t ON t.message_id=m.id AND t.user_id=m.user_id WHERE t.run_id=$1 AND m.id=ANY($2::uuid[]) AND t.status='pending' AND m.version=t.message_version AND m.state='active' FOR UPDATE OF m,t`,[runId,members.map(m=>m.id)])).rows;
   const rules=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));let changed=0;
   for(const row of rows){
-   const reasons=protectionReasons(row,rules);const decision=reasons.length?{...raw,action:'keep' as const,reason:reasons.join('; ')}:constrainDecision(raw,config);
+   const reasons=protectionReasons(row,rules);
+   let proposed=raw;
+   if(raw.reason.startsWith('Persönliche Regel ')){const current=(await db.query('SELECT * FROM learned_filter_rules WHERE enabled')).rows;proposed=personalDecision(row,current,rules)||{category:row.category,action:'review',confidence:'low',reason:'Persönliche Regel seit Planung geändert oder deaktiviert.'};}
+   const decision=reasons.length?{...proposed,action:'keep' as const,reason:reasons.join('; ')}:constrainDecision(proposed,config);
    if(row.recommendation!==decision.action||row.category!==decision.category)changed++;
    await db.query('UPDATE messages SET category=$2,recommendation=$3,reason=$4,decision_source=$5,decision_confidence=$6,analysis_mode=$5,analyzed_at=now(),version=version+1 WHERE id=$1',[row.id,decision.category,decision.action,decision.reason,source,decision.confidence]);
    await db.query("UPDATE review_targets SET status='applied' WHERE run_id=$1 AND message_id=$2",[runId,row.id]);

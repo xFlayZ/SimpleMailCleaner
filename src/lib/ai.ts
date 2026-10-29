@@ -5,6 +5,10 @@ import { decrypt,digest } from './crypto';
 import { AppError,requireValue } from './errors';
 import { jsonRequest } from './http';
 export type Model={id:string;name:string;context_length:number;pricing:Record<string,string>;architecture?:{input_modalities?:string[];output_modalities?:string[]};supported_parameters?:string[]};
+export function completionParameters(modelId:string,maxTokens:number){
+ // GPT-6's only currently ZDR-listed endpoint is Azure. It accepts max_completion_tokens, not the generic max_tokens parameter.
+ return modelId.startsWith('openai/gpt-6-')?{max_completion_tokens:maxTokens}:{max_tokens:maxTokens,temperature:0};
+}
 let catalog:{at:number;models:Model[]}|undefined;
 export async function models(force=false):Promise<Model[]> {
  if(!force&&catalog&&Date.now()-catalog.at<3600000)return catalog.models;
@@ -18,6 +22,7 @@ export async function models(force=false):Promise<Model[]> {
  catalog={at:Date.now(),models:result};return result;
 }
 export function modelReason(model:Model) {
+ if(model.id==='google/gemini-2.5-flash-lite'&&Date.now()>=Date.parse('2026-10-20T00:00:00Z'))return 'Von OpenRouter zum 20.10.2026 abgekündigt. Bitte ein aktuelles Modell wählen.';
  if(!model.architecture?.input_modalities?.includes('text')||!model.architecture?.output_modalities?.includes('text'))return 'Kein Textmodell';
  if(!model.supported_parameters?.includes('response_format'))return 'Keine strukturierte JSON-Ausgabe';
  if(!Number.isFinite(Number(model.pricing.prompt))||!Number.isFinite(Number(model.pricing.completion))||Number(model.pricing.prompt)<0||Number(model.pricing.completion)<0)return 'Preis nicht berechenbar';
@@ -63,7 +68,7 @@ export async function requestAnalysis<T>(userId:string,scanId:string|null,prompt
   return decrypt<string>(settings.api_key,userId);
  });
  try {
-  const result=await jsonRequest('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:model.id,provider:{zdr:true,data_collection:'deny',require_parameters:true},max_tokens:maxTokens,temperature:0,response_format:{type:'json_object'},messages:prompts})});
+  const result=await jsonRequest('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:model.id,provider:{zdr:true,data_collection:'deny',require_parameters:true},...completionParameters(model.id,maxTokens),response_format:{type:'json_object'},messages:prompts})});
   const cost=result.usage?.cost==null?null:Number(result.usage.cost);
   await tenant(userId,db=>db.query("UPDATE usage_events SET cost=$2,input_tokens=$3,output_tokens=$4,status='completed' WHERE id=$1",[usageId,cost!==null&&Number.isFinite(cost)&&cost>=0?cost:null,result.usage?.prompt_tokens||null,result.usage?.completion_tokens||null]));
   return parse(JSON.parse(result.choices?.[0]?.message?.content||''));

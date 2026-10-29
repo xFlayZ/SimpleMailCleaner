@@ -6,6 +6,12 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Added
 
+- Added a Coolify-ready Compose stack with separate web, worker, PostgreSQL and migration services, persistent database storage, and linked beginner-friendly deployment guides in German and English. Worker and migration commands now accept Coolify-provided environment variables without requiring a `.env` file.
+- Added independent **All date ranges** and **All messages** options for metadata imports. Unlimited bounds persist through retries; Gmail, Outlook and IMAP remove the corresponding filters while AI scans retain their explicit limits. The Proton connector accepts the same scope (connector update required).
+- Added `/training` with persisted 10/20/50-message sessions, pause/resume, diverse active-learning heuristics, optional reasons and user-controlled feedback scope.
+- Added per-user/per-mailbox feedback, correction capture from manual edits, inactive personal rule suggestions after three agreeing examples, manual rule creation, dry-run previews, explicit activation, priority, editing, deactivation, deletion and revision history with inactive restoration.
+- Integrated approved metadata rules before external AI in the existing review pipeline. Conflicts return review; protective criteria remain authoritative. Archive is a stored suggestion only. Training has no provider mutations or external AI calls.
+- Added migration 007, personal-rule unit tests and isolated training integration coverage. Documented heuristic limits and deferred optional statistical classification in `docs/TRAINING.md`.
 - Added a configurable dashboard with mailbox, newsletter, sender, cleanup, unclassified-message and AI-usage metrics. Widgets can be hidden and reordered; preferences are stored in the browser.
 - Added permanent application routes: `/dashboard`, `/mailbox`, `/newsletter`, `/senders`, `/cleanup`, `/activity`, `/settings` and `/login`; `/` redirects to `/dashboard`.
 - Added an all-index mailbox view with active/trash status filters, search, pagination and existing advanced filters.
@@ -17,6 +23,9 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Changed
 
+- Fixed the missing activity navigation item after adding training; navigation now includes every workspace section except the separately placed settings link.
+- Gmail imports now fetch at most five metadata messages concurrently. Gmail and Outlook report page/batch progress and check cancellation while fetching, instead of waiting for the full mailbox selection.
+- Added actionable network, timeout, permission and schema error messages; worker diagnostics log safe error codes and periodic liveness messages without exception contents or credentials.
 - Renamed the main overview to **Dashboard** and simplified **Prüfen & aufräumen** to **Aufräumen**.
 - Removed the duplicate mailbox-add icon, sidebar promotional card and duplicate profile control in the top bar.
 - The worker queue and OpenRouter batch polling now respect the per-user activity pause setting.

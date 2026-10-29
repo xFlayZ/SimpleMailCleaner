@@ -1,3 +1,4 @@
+import {correctionFeedback,suggestRules} from './training';
 import type {PoolClient} from 'pg';
 import {tenant} from './db';
 import {reviewFilterSchema,type ReviewFilters,type MessagePage} from './review-types';
@@ -47,6 +48,8 @@ export async function manualDecision(userId:string,ids:string[],action:'keep'|'r
   if(rows.length!==new Set(ids).size)throw new AppError(404,'Auswahl enthält nicht verfügbare Nachrichten.');
   const rules=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));
   if(action==='trash'&&rows.some(m=>m.state!=='active'||protectionReasons(m,rules).length))throw new AppError(409,'Geschützte Nachrichten können nicht als Aufräumvorschlag gesetzt werden.');
+  for(const m of rows)if(m.recommendation!==action)await correctionFeedback(db,userId,m,action);
+  for(const account of new Set<string>(rows.map(m=>m.account_id)))await suggestRules(db,userId,account);
   await db.query("UPDATE messages SET recommendation=$2,reason='Vom Nutzer manuell bewertet.',analyzed_at=now(),analysis_mode='manual',decision_source='manual',decision_confidence='high',version=version+1 WHERE id=ANY($1::uuid[])",[ids,action]);
   return {updated:rows.length};
  });

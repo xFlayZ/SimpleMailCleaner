@@ -7,8 +7,9 @@ export type MailMessage = {
 };
 export type MailContent = {text:string;raw:Buffer};
 export type RestoreData = {remoteId:string;folder:string;labels?:string[];originalId?:string};
+export type ListingObserver={check?:()=>Promise<void>;progress?:(count:number)=>Promise<void>};
 export interface MailAdapter {
- list(since:Date,max:number):Promise<MailMessage[]>;
+ list(since:Date,max:number,observer?:ListingObserver):Promise<MailMessage[]>;
  content(remoteId:string):Promise<MailContent>;
  guard(remoteId:string):Promise<{flagged:boolean;has_attachments:boolean;subject:string}>;
  trash(remoteId:string):Promise<RestoreData>;

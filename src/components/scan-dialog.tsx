@@ -7,6 +7,7 @@ const money=(value:number)=>new Intl.NumberFormat('de-DE',{style:'currency',curr
 export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:{data:DashboardData;initialAccountId:string;onStarted:()=>Promise<void>;onSettings:()=>void}) {
  const [accountId,setAccountId]=useState(initialAccountId||data.accounts[0]?.id||'');
  const [mode,setMode]=useState<ScanMode>('metadata'),[days,setDays]=useState(90),[max,setMax]=useState(100);
+ const [allDays,setAllDays]=useState(false),[allMessages,setAllMessages]=useState(false);
  const [consent,setConsent]=useState(false),[estimate,setEstimate]=useState<ScanEstimate|null>(null),[estimating,setEstimating]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const configured=data.settings.has_key&&data.settings.ai_consent&&Boolean(data.settings.model);
  useEffect(()=>{
@@ -23,7 +24,7 @@ export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:
  const start=async()=>{
   setBusy(true);setError('');
   try {
-   const response=await fetch('/api/scans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId,mode,days,max,confirmAi:consent,confirmContent:mode==='ai'&&consent})});
+   const response=await fetch('/api/scans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId,mode,days:mode==='metadata'&&allDays?0:days,max:mode==='metadata'&&allMessages?0:max,confirmAi:consent,confirmContent:mode==='ai'&&consent})});
    const result=await response.json();if(!response.ok)throw new Error(result.error||'Scan konnte nicht gestartet werden.');await onStarted();
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  };
@@ -34,11 +35,11 @@ export default function ScanDialog({data,initialAccountId,onStarted,onSettings}:
   <form onSubmit={e=>{e.preventDefault();void start();}}>
    <label>Postfach<select value={accountId} onChange={e=>setAccountId(e.target.value)}>{data.accounts.map(a=><option key={a.id} value={a.id}>{a.email}</option>)}</select></label>
    <div className="scan-mode-picker" role="radiogroup" aria-label="Analyseart">
-    <button type="button" role="radio" aria-checked={mode==='metadata'} className={mode==='metadata'?'chosen':''} onClick={()=>chooseMode('metadata')}><Inbox size={19}/><span><strong>Lokale Übersicht</strong><small>Empfohlen: kostenlos importieren und danach unter Prüfen & Aufräumen neu bewerten.</small></span><span className="pill neutral">0 USD</span></button>
+    <button type="button" role="radio" aria-checked={mode==='metadata'} className={mode==='metadata'?'chosen':''} onClick={()=>chooseMode('metadata')}><Inbox size={19}/><span><strong>Lokale Übersicht</strong><small>Empfohlen: kostenlos importieren und danach unter Aufräumen neu bewerten.</small></span><span className="pill neutral">0 USD</span></button>
     <button type="button" role="radio" aria-checked={mode==='ai'} className={mode==='ai'?'chosen':''} onClick={()=>chooseMode('ai')}><FileText size={19}/><span><strong>Separater KI-Inhaltsscan</strong><small>Übermittelt zusätzlich Textausschnitte. Umfangreicher, sensibler und meist teurer. Auf 500 Nachrichten begrenzt.</small></span></button>
    </div>
-   <div className="form-grid"><label>Letzte Tage<input type="number" min="1" max="3650" required value={days} onChange={e=>setDays(Number(e.target.value))}/></label><label>Max. Nachrichten<input type="number" min="1" max={mode==='ai'?500:20000} required value={max} onChange={e=>setMax(Number(e.target.value))}/></label></div>
-   {mode==='metadata'?<div className="estimate-card"><strong>Keine KI-Kosten: 0 USD</strong><p>Erfasst Absender, Betreff, Datum und lokale Schutzsignale. Es wird keine externe KI-Bewertung erstellt.</p></div>:<>
+   <div className="form-grid"><label>Letzte Tage<input type="number" min="1" max="3650" required disabled={mode==='metadata'&&allDays} value={days} onChange={e=>setDays(Number(e.target.value))}/>{mode==='metadata'&&<span className="checkbox-label"><input type="checkbox" checked={allDays} onChange={e=>setAllDays(e.target.checked)}/>Alle Zeiträume</span>}</label><label>Max. Nachrichten<input type="number" min="1" max={mode==='ai'?500:20000} required disabled={mode==='metadata'&&allMessages} value={max} onChange={e=>setMax(Number(e.target.value))}/>{mode==='metadata'&&<span className="checkbox-label"><input type="checkbox" checked={allMessages} onChange={e=>setAllMessages(e.target.checked)}/>Alle Nachrichten</span>}</label></div>
+   {mode==='metadata'?<div className="estimate-card"><strong>Keine KI-Kosten: 0 USD</strong><p>Erfasst Absender, Betreff, Datum und lokale Schutzsignale. Es wird keine externe KI-Bewertung erstellt. „Alle“ hebt die jeweilige Begrenzung auf; importiert wird der Posteingang. Große Bestände können länger dauern und lassen sich im Aktivitätsverlauf stoppen.</p></div>:<>
     {!configured?<div className="setup-note">Für KI-Bewertungen zuerst den eigenen OpenRouter-Schlüssel, das Modell und die Einwilligung in den Einstellungen hinterlegen.<button type="button" className="text-button" onClick={onSettings}>KI-Einstellungen öffnen →</button></div>:<div className="estimate-card" aria-live="polite">
      <small>GESCHÄTZTE INFERENZKOSTEN</small>
      {estimating?<p><Loader2 size={14} className="spin"/> Kostenschätzung wird geladen …</p>:estimate?<>
