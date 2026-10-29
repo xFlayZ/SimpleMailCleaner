@@ -6,6 +6,8 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Added
 
+- Replaced README mockup artwork with the supplied in-app dashboard and mailbox screenshots. The root route now sends signed-in users to the dashboard and everyone else to login; an explicit demo entry remains available from the login page.
+- Added a dedicated `/trash` workspace with searchable, filterable, paginated messages and safe restore selection. Activity action-result details now support subject/sender search, status filtering and received-date filters.
 - Added a Coolify-ready Compose stack with separate web, worker, PostgreSQL and migration services, persistent database storage, and linked beginner-friendly deployment guides in German and English. Worker and migration commands now accept Coolify-provided environment variables without requiring a `.env` file.
 - Added independent **All date ranges** and **All messages** options for metadata imports. Unlimited bounds persist through retries; Gmail, Outlook and IMAP remove the corresponding filters while AI scans retain their explicit limits. The Proton connector accepts the same scope (connector update required).
 - Added `/training` with persisted 10/20/50-message sessions, pause/resume, diverse active-learning heuristics, optional reasons and user-controlled feedback scope.

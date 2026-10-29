@@ -14,25 +14,22 @@
 
 ## Screenshots
 
-The previews below use fictional mailbox data; they contain no user messages or account information.
+The screenshots show the application UI in demo mode with fictional mailbox data.
 
 ### Dashboard
 
-![SimpleMailCleaner dashboard: mailbox statistics, cleanup pipeline, frequent senders and usage](docs/screenshots/dashboard.svg)
+![SimpleMailCleaner dashboard with mailbox metrics and cleanup workflow](docs/screenshots/dashboard-real.png)
 
 ### Mailbox search and review
 
-![SimpleMailCleaner mailbox with search, filters, message categories and recommendations](docs/screenshots/mailbox.svg)
-
-### Activity timeline
-
-![SimpleMailCleaner activity timeline with pause, clear and safe retry controls](docs/screenshots/activity.svg)
+![SimpleMailCleaner mailbox with search, filters, message categories and recommendations](docs/screenshots/mailbox-real.png)
 
 ## Features
 
 - Personal [training mode and intelligent filters](docs/TRAINING.md): resumable sessions, optional reasons, correction feedback, inactive rule suggestions, dry-runs and versioned rule management. Metadata rules run before external AI; training itself has no API charges or provider actions.
 - Dashboard with indexed-message, newsletter, cleanup-suggestion, sender, unclassified-message and AI-usage metrics. Widgets can be hidden or reordered per browser.
 - Dedicated routes for Dashboard, Mailbox, Newsletters, Senders, Cleanup, Activity and Settings.
+- Dedicated Trash view at `/trash` with search, category/status/date filters, pagination and selected-message restore. Activity action results can also be searched and filtered by status and message date.
 - Mailbox-wide search, server-side filtering and pagination, CSV export, message preview and manual category/recommendation controls.
 - Sender and newsletter grouping, protected-sender rules and reviewed bulk cleanup by newsletter, exact sender or date.
 - Optional AI-assisted re-evaluation of the existing index, saved criteria profiles, a user instruction, preview and estimated cost before a run.
@@ -46,6 +43,7 @@ The previews below use fictional mailbox data; they contain no user messages or 
 - Protected-message safeguards, explicit immutable action selections, version checks and a separate approval step before provider mutations.
 - Newsletter unsubscribe only through verified RFC 8058 one-click headers. No form filling, login-based unsubscribe or final provider-side deletion.
 - Demo access is opt-in. Until a user chooses the demo or signs in, the app does not show fictional mailbox data as if it were their account.
+- The root URL routes signed-in users to the dashboard and unsigned visitors to login. Demo access is available as a clearly labeled, explicit option on the login page.
 
 ## Supported providers
 
@@ -107,6 +105,7 @@ For Gmail and Outlook, create an OAuth application with the exact callback URLs 
 | --- | --- |
 | `/dashboard` | Overview and configurable widgets |
 | `/mailbox` | All indexed messages, search and filters |
+| `/trash` | Messages moved to provider trash, with search, filters and restore |
 | `/newsletter` | Newsletter groups and unsubscribe review |
 | `/senders` | Recurring senders and sender protection |
 | `/cleanup` | Review and cleanup suggestions |
@@ -115,7 +114,7 @@ For Gmail and Outlook, create an OAuth application with the exact callback URLs 
 | `/settings` | Mailboxes, OpenRouter and account controls |
 | `/login` | Sign in or register |
 
-The root route `/` redirects to `/dashboard`.
+At `/`, signed-in users are sent to `/dashboard`; visitors without a session are sent to `/login`. The optional demo is entered explicitly from the login page.
 
 ## Safety model
 

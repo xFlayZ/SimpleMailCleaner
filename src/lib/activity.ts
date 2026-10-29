@@ -24,12 +24,13 @@ export async function activityPage(userId:string,input:unknown):Promise<Activity
   return {items,total:summary.total,page,pages,pageSize:f.pageSize,summary};
  });
 }
-export async function activityItems(userId:string,id:string,page:number,status:string){
+export async function activityItems(userId:string,id:string,page:number,status:string,q='',dateFrom='',dateTo=''){
  return tenant(userId,async db=>{
-  const condition="i.plan_id=$1 AND ($2::text='all' OR i.status=$2)";
-  const total=(await db.query(`SELECT count(*)::int AS n FROM action_items i WHERE ${condition}`,[id,status])).rows[0].n;
+  const condition="i.plan_id=$1 AND ($2::text='all' OR i.status=$2) AND ($3::text='' OR m.subject ILIKE '%'||$3||'%' OR m.sender ILIKE '%'||$3||'%') AND ($4::date IS NULL OR m.received_at::date >= $4::date) AND ($5::date IS NULL OR m.received_at::date <= $5::date)";
+  const values=[id,status,q,dateFrom||null,dateTo||null];
+  const total=(await db.query(`SELECT count(*)::int AS n FROM action_items i JOIN messages m ON m.id=i.message_id AND m.user_id=i.user_id WHERE ${condition}`,values)).rows[0].n;
   const pages=Math.max(1,Math.ceil(total/50)),p=Math.min(pages,page);
-  const items=(await db.query(`SELECT i.id,i.status,i.error,m.subject,m.sender FROM action_items i JOIN messages m ON m.id=i.message_id AND m.user_id=i.user_id WHERE ${condition} ORDER BY i.id LIMIT 50 OFFSET $3`,[id,status,(p-1)*50])).rows;
+  const items=(await db.query(`SELECT i.id,i.status,i.error,m.subject,m.sender,m.received_at FROM action_items i JOIN messages m ON m.id=i.message_id AND m.user_id=i.user_id WHERE ${condition} ORDER BY i.id LIMIT 50 OFFSET $6`,[...values,(p-1)*50])).rows;
   return {items,total,pages,page:p,pageSize:50};
  });
 }

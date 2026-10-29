@@ -17,7 +17,7 @@ import { ArrowDown,ArrowRight,ArrowUpRight,BarChart3,Bell,Check,CheckCheck,Chevr
 import { demoData,providerNames,categoryNames,statusNames,type DashboardData } from '@/lib/demo';
 type Model={id:string;name:string;context_length:number;pricing:Record<string,string>;unavailableReason:string|null};
 type Plan={id:string;digest:string;kind:string;count:number;expiresAt:string;messages:{id:string;subject:string;sender:string}[]};
-const tabs=[['overview','Dashboard',LayoutDashboard],['mailbox','Postfach',Inbox],['newsletters','Newsletter',Mail],['senders','Absender',Users],['review','Aufräumen',CheckCheck],['training','Intelligente Filterung',Sparkles],['history','Aktivitätsverlauf',Clock],['settings','Einstellungen',Settings]] as const;
+const tabs=[['overview','Dashboard',LayoutDashboard],['mailbox','Postfach',Inbox],['trash','Papierkorb',Trash2],['newsletters','Newsletter',Mail],['senders','Absender',Users],['review','Aufräumen',CheckCheck],['training','Intelligente Filterung',Sparkles],['history','Aktivitätsverlauf',Clock],['settings','Einstellungen',Settings]] as const;
 const money=(value:number)=>Number.isFinite(value)?new Intl.NumberFormat('de-DE',{style:'currency',currency:'USD',maximumFractionDigits:4}).format(value):'–';
 const date=(value:string)=>new Date(value).toLocaleDateString('de-DE',{day:'2-digit',month:'short'});
 const initials=(value:string)=>value.replace(/@.*/,'').slice(0,2).toUpperCase();
@@ -25,11 +25,11 @@ async function api<T=Record<string,unknown>>(path:string,data?:unknown):Promise<
  const response=await fetch(`/api/${path}`,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
  const result=await response.json();if(!response.ok)throw new Error(result.error||'Anfrage fehlgeschlagen.');return result;
 }
-const tabPaths:Record<string,string>={overview:'/dashboard',mailbox:'/mailbox',newsletters:'/newsletter',senders:'/senders',review:'/cleanup',training:'/training',history:'/activity',settings:'/settings'};
+const tabPaths:Record<string,string>={overview:'/dashboard',mailbox:'/mailbox',trash:'/trash',newsletters:'/newsletter',senders:'/senders',review:'/cleanup',training:'/training',history:'/activity',settings:'/settings'};
 const pathTabs:Record<string,string>=Object.fromEntries(Object.entries(tabPaths).map(([k,v])=>[v,k]));
 const emptyData:DashboardData={...demoData,accounts:[],messages:[],events:[],scans:[],plans:[],rules:[],summary:{tracked:0,active:0,trashed:0,suggestions:0,newsletters:0,senders:0,unclassified:0,suggestedBytes:0},topSenders:[],usage:{cost:0,estimated:0}};
 export default function Dashboard({initialTab}:{initialTab?:string}={}){
- const [data,setData]=useState<DashboardData>(emptyData),[user,setUser]=useState<{email:string}|null>(null),[tab,setTab]=useState(initialTab||'overview'),[demoEnabled,setDemoEnabled]=useState(false);
+ const [data,setData]=useState<DashboardData>(emptyData),[user,setUser]=useState<{email:string}|null>(null),[tab,setTab]=useState(initialTab||'overview'),[demoEnabled,setDemoEnabled]=useState(false),[authResolved,setAuthResolved]=useState(false);
  const [modal,setModal]=useState<string|null>(null),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState('');
  const [search,setSearch]=useState(''),[accountFilter,setAccountFilter]=useState('all');
  const [authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[register,setRegister]=useState(false);
@@ -46,13 +46,13 @@ export default function Dashboard({initialTab}:{initialTab?:string}={}){
  const demo=!user&&demoEnabled;
  const refresh=useCallback(async()=>{const next=await api<DashboardData>('dashboard');setData(next);return next;},[]);
  const applySettings=(next:DashboardData)=>{setModel(next.settings.model);setAiConsent(next.settings.ai_consent);setScanBudget(Number(next.settings.scan_budget));setMonthlyBudget(Number(next.settings.monthly_budget));};
- useEffect(()=>{void api<{user:{email:string}|null}>('session').then(async result=>{if(result.user){setUser(result.user);applySettings(await refresh());}}).catch(()=>{});const onPop=()=>setTab(pathTabs[window.location.pathname]||'overview');window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[refresh]);
+ useEffect(()=>{void api<{user:{email:string}|null}>('session').then(result=>{if(result.user){setUser(result.user);setAuthResolved(true);void refresh().then(applySettings).catch(e=>setError((e as Error).message));return;}if(new URLSearchParams(window.location.search).get('demo')==='1'){setDemoEnabled(true);setData(demoData);setAuthResolved(true);return;}window.location.replace('/login');}).catch(()=>window.location.replace('/login'));const onPop=()=>setTab(pathTabs[window.location.pathname]||'overview');window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[refresh]);
  useEffect(()=>{if(!user)return;const timer=setInterval(()=>{void refresh().catch(()=>{});},5000);return()=>clearInterval(timer);},[user,refresh]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),7000);return()=>clearTimeout(timer);},[notice]);
  const run=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');try{await fn();}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
  const needUser=()=>{if(!user){setModal('auth');return false;}return true;};
  const notify=(text:string)=>setNotice(text);
- const changeTab=(value:string)=>{setTab(value);setSearch('');const path=tabPaths[value]||'/dashboard';if(window.location.pathname!==path)window.history.pushState({},'',path);};
+ const changeTab=(value:string)=>{setTab(value);setSearch('');const path=tabPaths[value]||'/dashboard';if(window.location.pathname!==path)window.history.pushState({},'',`${path}${demo?'?demo=1':''}`);};
  const active=data.messages.filter(m=>m.state==='active');
  const trashable=active.filter(m=>m.recommendation==='trash'&&!m.protected&&!data.rules.includes(m.sender));
  const suggestionCount=data.summary?.suggestions??trashable.length;
@@ -63,7 +63,8 @@ export default function Dashboard({initialTab}:{initialTab?:string}={}){
  const loadModels=async()=>{if(!needUser())return;setModelLoading(true);try{const result=await api<{models:Model[]}>('models');setModelList(result.models);}catch(e){setError((e as Error).message);}finally{setModelLoading(false);}};
  useEffect(()=>{if(user&&tab==='settings'&&!modelList.length)void loadModels();/* user-triggered settings only */},[tab,user]); // eslint-disable-line react-hooks/exhaustive-deps
  const title=tab==='overview'?'Dashboard':tab==='mailbox'?'Postfach':tab==='review'?'Aufräumen':tabs.find(t=>t[0]===tab)?.[1]||'Dashboard';
- const subtitle=tab==='overview'?'Deine Postfächer und Aufräumaktivitäten auf einen Blick.':tab==='mailbox'?'Alle erfassten Nachrichten durchsuchen und filtern.':tab==='newsletters'?'Entdecke deine Abonnements und entscheide, was bleiben darf.':tab==='senders'?'Wiederkehrende Absender verstehen und Wichtiges schützen.':tab==='review'?'Vorschläge prüfen und Nachrichten gezielt aufräumen.':tab==='history'?'Vorgänge nachvollziehen, fortsetzen oder bereinigen.':'Deine Konten, dein Modell und die Kontrolle über deine Daten.';
+ const subtitle=tab==='overview'?'Deine Postfächer und Aufräumaktivitäten auf einen Blick.':tab==='mailbox'?'Alle erfassten Nachrichten durchsuchen und filtern.':tab==='trash'?'Prüfe verschobene Nachrichten und stelle sie bei Bedarf wieder her.':tab==='newsletters'?'Entdecke deine Abonnements und entscheide, was bleiben darf.':tab==='senders'?'Wiederkehrende Absender verstehen und Wichtiges schützen.':tab==='review'?'Vorschläge prüfen und Nachrichten gezielt aufräumen.':tab==='history'?'Vorgänge nachvollziehen, fortsetzen oder bereinigen.':'Deine Konten, dein Modell und die Kontrolle über deine Daten.';
+ if(!authResolved)return <main className="auth-page"><p>Arbeitsbereich wird geöffnet …</p></main>;
  return <div className="app-shell">
   <aside className="sidebar">
    <a className="brand" href="/"><span className="brand-icon"><Mail size={24}/><span/></span><span>simplemail<span className="brand-light">cleaner</span></span></a>
@@ -84,6 +85,7 @@ export default function Dashboard({initialTab}:{initialTab?:string}={}){
     <section className="page-heading"><div><div className="eyebrow">{tab==='overview'?'DEIN PERSÖNLICHER ÜBERBLICK':'SIMPLEMAILCLEANER'}</div><h1>{title}</h1><p>{subtitle}</p></div><button className="primary-button" onClick={openScan}><Sparkles size={17}/> Metadaten importieren</button></section>
     {tab==='overview'&&<OverviewPanel data={data} onReview={()=>changeTab('review')} onImport={openScan} onSenders={()=>changeTab('senders')}/>}
     {tab==='mailbox'&&<ReviewWorkspace data={data} account={accountFilter} initialSearch={search} demo={demo} allStates onPlan={makePlan} onBulk={setBulk} onEdit={setEditScope} onLogin={()=>window.location.assign('/login')} onPreview={m=>{if(demo){setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:'Fiktive Beispielnachricht.'});setModal('preview');return;}void run(async()=>{const result=await api<{text:string}>(`messages/${m.id}/preview`);setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:result.text});setModal('preview');});}} onRefresh={refresh}/>}
+    {tab==='trash'&&<ReviewWorkspace data={data} account={accountFilter} initialSearch={search} demo={demo} trashOnly onPlan={makePlan} onBulk={setBulk} onEdit={setEditScope} onLogin={()=>setModal('auth')} onPreview={m=>{if(demo){setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:'Fiktive Beispielnachricht.'});setModal('preview');return;}void run(async()=>{const result=await api<{text:string}>(`messages/${m.id}/preview`);setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:result.text});setModal('preview');});}} onRefresh={refresh}/>}
     {(tab==='newsletters'||tab==='senders')&&<GroupWorkspace kind={tab} account={accountFilter} data={data} demo={demo} onPlan={makePlan} onBulk={setBulk} onEdit={setEditScope} onInspect={sender=>{setSearch(sender);setTab('review');}} onProtect={protect}/>}
     {tab==='review'&&<ReviewWorkspace data={data} account={accountFilter} initialSearch={search} demo={demo} onPlan={makePlan} onBulk={setBulk} onEdit={setEditScope} onLogin={()=>setModal('auth')} onPreview={m=>{if(demo){setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:'Fiktive Beispielnachricht. Im echten Arbeitsplatz wird hier auf deinen Wunsch ausschließlich Text geladen.'});setModal('preview');return;}void run(async()=>{const result=await api<{text:string}>(`messages/${m.id}/preview`);setPreview({id:m.id,sender:m.sender,accountId:m.account_id,subject:m.subject,text:result.text});setModal('preview');});}} onRefresh={refresh}/>}
     {tab==='history'&&<ActivityWorkspace data={data} demo={demo} onRefresh={refresh}/>}

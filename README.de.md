@@ -14,19 +14,15 @@ Die englische README ist die primäre Projektbeschreibung; diese deutsche Versio
 
 ## Screenshots
 
-Die Vorschauen verwenden ausschließlich fiktive Postfachdaten.
+Die Screenshots zeigen die Anwendung im Demo-Modus mit ausschließlich fiktiven Postfachdaten.
 
 ### Dashboard
 
-![SimpleMailCleaner-Dashboard mit Kennzahlen, Aufräum-Pipeline und Absendern](docs/screenshots/dashboard.svg)
+![SimpleMailCleaner-Dashboard mit Kennzahlen und Aufräum-Pipeline](docs/screenshots/dashboard-real.png)
 
 ### Postfach und Prüfung
 
-![Postfach mit Suche, Filtern, Kategorien und Empfehlungen](docs/screenshots/mailbox.svg)
-
-### Aktivitätsverlauf
-
-![Aktivitätsverlauf mit Status, Sortierung und sicheren Wiederholungsoptionen](docs/screenshots/activity.svg)
+![Postfach mit Suche, Filtern, Kategorien und Empfehlungen](docs/screenshots/mailbox-real.png)
 
 Newsletter erkennen, wiederkehrende Absender verstehen und unnötige Nachrichten gezielt aussortieren. Die KI liefert Empfehlungen; erst nach deiner ausdrücklichen Freigabe werden Nachrichten in den Papierkorb verschoben oder unterstützte Newsletter-Abmeldungen ausgeführt.
 
@@ -37,8 +33,10 @@ Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **
 ## Funktionen
 
 - [Intelligente Filterung und Trainingsmodus](docs/TRAINING.md): fortsetzbare Sessions, optionale Begründungen, Korrekturen, bestätigungspflichtige Regelvorschläge sowie Regelverwaltung mit Vorschau und Versionsrücknahme unter `/training`. Das Training löst keine KI-Kosten oder Anbieteraktionen aus.
-- Feste Routen für Dashboard, Postfach, Newsletter, Absender, Aufräumen, Aktivitäten und Einstellungen; die Demo startet erst nach explizitem Klick.
+- Feste Routen für Dashboard, Postfach, Papierkorb, Newsletter, Absender, Aufräumen, Aktivitäten und Einstellungen; die Demo startet erst nach explizitem Klick.
+- `/` führt angemeldete Nutzer zum Dashboard und alle anderen zur Login-Seite. Der Demo-Zugang bleibt dort als bewusste Auswahl verfügbar.
 - Das Postfach zeigt alle erfassten E-Mails mit Suche, Filtern und Pagination. Dashboard-Kennzahlen und Widgets können pro Browser angepasst werden.
+- Eigener Papierkorb unter `/trash` mit Suche, Kategorie-/Status-/Datumsfiltern, Seitenwechsel und Wiederherstellung ausgewählter Nachrichten. Aktionsdetails lassen sich ebenfalls nach Status, Betreff/Absender und Nachrichtendatum filtern.
 - Warteschlange im Aktivitätsverlauf pausieren/fortsetzen, abgeschlossene Historie leeren und sichere lokale Vorgänge erneut starten.
 - Lokalen Datenbestand eines Postfachs unabhängig von den E-Mails beim Anbieter leeren; Konto nach Passwortbestätigung unwiderruflich löschen.
 - Dashboard mit Kennzahlen über den gesamten Index und paginierten Newsletter-/Absendergruppen.

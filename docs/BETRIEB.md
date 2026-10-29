@@ -31,7 +31,7 @@ Diese erste Implementierung enthält produktive Schnittstellenpfade für alle f�
 
 ## Workspace-Verwaltung (Stand 29.10.2026)
 
-- Feste App-Routen: `/dashboard`, `/mailbox`, `/newsletter`, `/senders`, `/cleanup`, `/activity`, `/settings` und `/login`; `/` leitet zum Dashboard.
+- Feste App-Routen: `/dashboard`, `/mailbox`, `/trash`, `/newsletter`, `/senders`, `/cleanup`, `/activity`, `/training`, `/settings` und `/login`; `/` leitet angemeldete Nutzer zum Dashboard und nicht angemeldete Nutzer zur Anmeldung.
 - Das Postfach zeigt alle erfassten Nachrichten einschließlich lokalem Papierkorbstatus. Sammelauswahl in der Ansicht „Alle E-Mails“ schließt Papierkorb-Nachrichten aus; Wiederherstellung erfolgt über den Papierkorbfilter.
 - Dashboard-Widgets lassen sich je Browser ausblenden und neu anordnen. Demo-Daten werden nur nach expliziter Aktivierung angezeigt.
 - Aktivitätsverlauf pausiert/fortsetzt die nutzereigene Queue und das Polling von OpenRouter-Batches. Bereits laufende externe Aufrufe werden nicht abrupt beendet. Automatische Wiederholung gibt es nur für Metadatenimporte und lokale Regel-Neubewertungen; KI-Läufe brauchen eine neue Kostenvorschau und Schreibaktionen mit unklarem Anbieterstatus werden nicht erneut ausgeführt.
