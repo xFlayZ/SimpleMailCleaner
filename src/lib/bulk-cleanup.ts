@@ -5,12 +5,13 @@ import {digest} from './crypto';
 import {protectionReasons} from './policy';
 import {AppError} from './errors';
 export const bulkCleanupSchema=z.object({
- scope:z.enum(['newsletters','sender','older']),
+ scope:z.enum(['newsletters','sender','newsletter_sender','older']),
  accountId:z.union([z.uuid(),z.literal('all')]).default('all'),
  sender:z.string().trim().max(320).default(''),
+ listId:z.string().max(320).nullable().default(null),
  before:z.iso.date().or(z.literal('')).default(''),
  includeKeep:z.boolean().default(true)
-}).refine(v=>v.scope!=='sender'||v.sender.length>0,{message:'Absender erforderlich.'})
+}).refine(v=>(v.scope!=='sender'&&v.scope!=='newsletter_sender')||v.sender.length>0,{message:'Absender erforderlich.'})
  .refine(v=>v.scope!=='older'||Boolean(v.before),{message:'Stichtag erforderlich.'});
 export type BulkCleanupInput=z.infer<typeof bulkCleanupSchema>;
 export type BulkCleanupPreview={id:string;digest:string;count:number;matched:number;protected:number;busy:number;keep:number;expiresAt:string;accounts:{email:string;count:number}[];messages:{id:string;subject:string;sender:string}[]};
@@ -22,6 +23,11 @@ export async function createBulkCleanup(userId:string,input:unknown):Promise<Bul
   if(selection.accountId!=='all')where.push(`m.account_id=${param(selection.accountId)}::uuid`);
   if(selection.scope==='newsletters')where.push("(m.list_id IS NOT NULL OR m.newsletter_signal OR m.category='newsletter')");
   if(selection.scope==='sender')where.push(`lower(m.sender)=lower(${param(selection.sender)})`);
+  if(selection.scope==='newsletter_sender'){
+   where.push(`lower(m.sender)=lower(${param(selection.sender)})`);
+   if(selection.listId)where.push(`m.list_id=${param(selection.listId)}`);
+   else where.push("m.list_id IS NULL AND (m.newsletter_signal OR m.category='newsletter')");
+  }
   if(selection.before)where.push(`m.received_at<${param(selection.before)}::date`);
   if(!selection.includeKeep)where.push("m.recommendation<>'keep'");
   const rows=(await db.query(`SELECT m.*,a.email AS account_email FROM messages m JOIN accounts a ON a.id=m.account_id AND a.user_id=m.user_id WHERE ${where.join(' AND ')} ORDER BY m.id LIMIT 50001 FOR UPDATE OF m`,values)).rows;

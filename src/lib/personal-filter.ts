@@ -11,9 +11,13 @@ export const personalConfig=z.object({
 export type PersonalConfig=z.infer<typeof personalConfig>;
 export type PersonalRule={id:string;account_id:string;name:string;config:PersonalConfig;enabled:boolean;priority:number};
 export function features(m:IndexedMessage){return {sender:m.sender.toLowerCase(),category:m.category,terms:[...new Set(m.subject.toLowerCase().match(/[\p{L}]{4,}/gu)||[])].filter(t=>!['eine','einer','deine','dieser','their','your','with','from','diese','haben','unser'].includes(t)).slice(0,12)};}
+export function inspectPersonalMatch(m:IndexedMessage,c:PersonalConfig,now=Date.now()){
+ const subject=m.subject.toLowerCase(),matchingTerms=c.terms.filter(t=>subject.includes(t.toLowerCase())),exceptionMatches=c.exceptions.filter(t=>subject.includes(t.toLowerCase())),ageDays=Math.max(0,(now-new Date(m.received_at).getTime())/86400000);
+ return {senderMatches:m.sender.toLowerCase()===c.sender.toLowerCase(),categoryMatches:m.category===c.category,matchingTerms,hasTerm:matchingTerms.length>0,exceptionMatches,ageDays,ageMatches:ageDays>=c.minAgeDays};
+}
 export function matchesPersonal(m:IndexedMessage,c:PersonalConfig,now=Date.now()){
- const subject=m.subject.toLowerCase();
- return m.sender.toLowerCase()===c.sender.toLowerCase()&&m.category===c.category&&c.terms.some(t=>subject.includes(t.toLowerCase()))&&!c.exceptions.some(t=>subject.includes(t.toLowerCase()))&&(now-new Date(m.received_at).getTime())/86400000>=c.minAgeDays;
+ const x=inspectPersonalMatch(m,c,now);
+ return x.senderMatches&&x.categoryMatches&&x.hasTerm&&!x.exceptionMatches.length&&x.ageMatches;
 }
 export function personalDecision(m:IndexedMessage,rules:PersonalRule[],protectedSenders:Set<string>,now=Date.now()):Decision|null{
  if(protectionReasons(m,protectedSenders).length)return null;

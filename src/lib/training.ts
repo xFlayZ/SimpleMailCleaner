@@ -2,7 +2,8 @@ import {z} from 'zod';
 import type {PoolClient} from 'pg';
 import {tenant} from './db';
 import {AppError,requireValue} from './errors';
-import {features,personalConfig,matchesPersonal,trainingSelection} from './personal-filter';
+import {features,personalConfig,matchesPersonal,inspectPersonalMatch,trainingSelection} from './personal-filter';
+import type {PersonalConfig} from './personal-filter';
 import {protectionReasons} from './policy';
 import type {IndexedMessage} from './review-types';
 export async function correctionFeedback(db:PoolClient,userId:string,m:IndexedMessage,action:string){
@@ -59,13 +60,29 @@ export async function suggestRules(db:PoolClient,userId:string,accountId:string)
 export async function trainingPause(userId:string,input:unknown){const d=z.object({id:z.uuid(),paused:z.boolean()}).parse(input);await tenant(userId,db=>db.query("UPDATE training_sessions SET status=$2 WHERE id=$1 AND status<>'completed'",[d.id,d.paused?'paused':'active']));return {ok:true};}
 export async function createPersonalRule(userId:string,input:unknown){const d=z.object({accountId:z.uuid(),name:z.string().min(1).max(160),config:personalConfig}).parse(input);return tenant(userId,async db=>{requireValue((await db.query('SELECT id FROM accounts WHERE id=$1',[d.accountId])).rows[0]);await db.query("INSERT INTO learned_filter_rules(user_id,account_id,name,config,signature,origin) VALUES($1,$2,$3,$4,gen_random_uuid()::text,'manual')",[userId,d.accountId,d.name,d.config]);return {ok:true};});}
 export async function personalRuleAction(userId:string,input:unknown){
- const d=z.object({id:z.uuid(),operation:z.enum(['save','test','delete','undo']),revision:z.number().int(),name:z.string().min(1).max(160).optional(),config:personalConfig.optional(),enabled:z.boolean().optional(),priority:z.number().int().min(0).max(10000).optional(),confirm:z.boolean().default(false)}).parse(input);
- return tenant(userId,async db=>{const r=requireValue((await db.query('SELECT * FROM learned_filter_rules WHERE id=$1 FOR UPDATE',[d.id])).rows[0]);if(r.revision!==d.revision)throw new AppError(409,'Regel inzwischen verändert. Neu laden.');const config=d.config||r.config;
-  if(d.operation==='test'){const rows=(await db.query("SELECT * FROM messages WHERE account_id=$1 AND lower(sender)=lower($2) AND state='active' LIMIT 50001",[r.account_id,config.sender])).rows;const senders=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender));const hits=rows.filter(m=>matchesPersonal(m,config)&&!protectionReasons(m,senders).length);return {count:hits.length,sample:hits.slice(0,10).map(m=>({subject:m.subject,sender:m.sender})),limited:rows.length>50000};}
+ const d=z.object({id:z.uuid().optional(),accountId:z.uuid().optional(),operation:z.enum(['save','test','delete','undo']),revision:z.number().int().optional(),name:z.string().min(1).max(160).optional(),config:personalConfig.optional(),enabled:z.boolean().optional(),priority:z.number().int().min(0).max(10000).optional(),confirm:z.boolean().default(false)}).parse(input);
+ return tenant(userId,async db=>{
+  if(d.operation==='test'&&!d.id){const accountId=requireValue(d.accountId,'Postfach fehlt.');requireValue((await db.query('SELECT id FROM accounts WHERE id=$1',[accountId])).rows[0],'Postfach nicht gefunden.');const config=requireValue(d.config,'Regelbedingungen fehlen.');return previewPersonalRule(db,accountId,config);}
+  const id=requireValue(d.id,'Regel fehlt.'),r=requireValue((await db.query('SELECT * FROM learned_filter_rules WHERE id=$1 FOR UPDATE',[id])).rows[0]);if(r.revision!==d.revision)throw new AppError(409,'Regel inzwischen verändert. Neu laden.');const config=d.config||r.config;
+  if(d.operation==='test')return previewPersonalRule(db,r.account_id,config);
   if(d.operation==='delete'){await db.query('DELETE FROM learned_filter_rules WHERE id=$1',[r.id]);return {ok:true};}
   if(d.enabled&&!d.confirm)throw new AppError(422,'Regel nach Vorschau ausdrücklich bestätigen.');
   if(d.enabled){const feedback=(await db.query("SELECT DISTINCT ON(message_id) * FROM training_feedback WHERE account_id=$1 AND contributes ORDER BY message_id,created_at DESC,id",[r.account_id])).rows;const conflict=feedback.some(f=>f.decision!=='skip'&&f.decision!==config.decision&&f.features.sender===config.sender&&f.features.category===config.category&&f.features.terms.some((t:string)=>config.terms.includes(t)));if(conflict)throw new AppError(409,'Widersprüchliches Feedback vorhanden. Bedingungen enger fassen oder das Beispiel erneut prüfen.');}
   const history=[...r.history,{name:r.name,config:r.config,enabled:r.enabled,priority:r.priority,at:new Date().toISOString()}].slice(-20);let next={name:d.name||r.name,config,enabled:d.enabled??r.enabled,priority:d.priority??r.priority};
   if(d.operation==='undo'){const previous=r.history.at(-1);if(!previous)throw new AppError(409,'Keine vorherige Version.');next={...previous,enabled:false};}
   await db.query('UPDATE learned_filter_rules SET name=$2,config=$3,enabled=$4,priority=$5,history=$6,revision=revision+1,updated_at=now() WHERE id=$1',[r.id,next.name,next.config,next.enabled,next.priority,JSON.stringify(history)]);return {ok:true};});
+}
+
+async function previewPersonalRule(db:PoolClient,accountId:string,config:PersonalConfig){
+ const totalActive=Number((await db.query("SELECT count(*)::int AS count FROM messages WHERE account_id=$1 AND state='active'",[accountId])).rows[0].count),rows=(await db.query("SELECT * FROM messages WHERE account_id=$1 AND state='active' ORDER BY received_at DESC LIMIT 50001",[accountId])).rows,limited=rows.length>50000,messages=rows.slice(0,50000) as IndexedMessage[],senders=new Set<string>((await db.query('SELECT sender FROM rules')).rows.map(r=>r.sender.toLowerCase()));
+ const stage={scanned:messages.length,sender:0,category:0,terms:0,age:0,exceptions:0,matched:0,protected:0,actionable:0};
+ const examples:{status:'actionable'|'protected'|'not_matched';subject:string;sender:string;receivedAt:string;category:string;recommendation:string;action:string;matchingTerms:string[];exceptionMatches:string[];ageDays:number;protectionReasons:string[];why:string[]}[]=[];
+ const matchedCategories=new Map<string,number>(),actionCounts={keep:0,archive:0,remove:0};
+ for(const m of messages){const x=inspectPersonalMatch(m,config);if(x.senderMatches)stage.sender++;if(x.senderMatches&&x.categoryMatches)stage.category++;if(x.senderMatches&&x.categoryMatches&&x.hasTerm)stage.terms++;if(x.senderMatches&&x.categoryMatches&&x.hasTerm&&x.ageMatches)stage.age++;if(x.senderMatches&&x.categoryMatches&&x.hasTerm&&x.ageMatches&&!x.exceptionMatches.length)stage.exceptions++;
+  const reasons=protectionReasons(m,senders),matched=matchesPersonal(m,config);if(matched)stage.matched++;if(matched&&reasons.length)stage.protected++;if(matched&&!reasons.length){stage.actionable++;actionCounts[config.decision]++;matchedCategories.set(m.category,(matchedCategories.get(m.category)||0)+1);}
+  const status=matched?(reasons.length?'protected':'actionable'):'not_matched';if(examples.filter(e=>e.status===status).length>=4)continue;
+  const why:string[]=[];if(!x.senderMatches)why.push('Absender stimmt nicht exakt überein');if(!x.categoryMatches)why.push(`Kategorie ist ${m.category}, erwartet wird ${config.category}`);if(!x.hasTerm)why.push('Keiner der Suchbegriffe kommt im Betreff vor');if(x.exceptionMatches.length)why.push(`Ausnahme im Betreff: ${x.exceptionMatches.join(', ')}`);if(!x.ageMatches)why.push(`Jünger als ${config.minAgeDays} Tage`);if(reasons.length)why.push(...reasons);
+  examples.push({status,subject:m.subject,sender:m.sender,receivedAt:new Date(m.received_at).toISOString(),category:m.category,recommendation:m.recommendation,action:matched&&!reasons.length?config.decision:'none',matchingTerms:x.matchingTerms,exceptionMatches:x.exceptionMatches,ageDays:Math.floor(x.ageDays),protectionReasons:reasons,why});
+ }
+ return {scope:'active_account_metadata',totalActive,limited,criteria:{sender:config.sender,category:config.category,terms:config.terms,termLogic:'OR',minAgeDays:config.minAgeDays,exceptions:config.exceptions,decision:config.decision,bodyScanned:false},stages:stage,actionCounts,categories:[...matchedCategories].map(([category,count])=>({category,count})),examples};
 }

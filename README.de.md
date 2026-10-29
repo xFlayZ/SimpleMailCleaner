@@ -32,10 +32,10 @@ Die Oberfläche und Dokumentation sind auf Deutsch. Die Anwendung lässt sich **
 
 ## Funktionen
 
-- [Intelligente Filterung und Trainingsmodus](docs/TRAINING.md): fortsetzbare Sessions, optionale Begründungen, Korrekturen, bestätigungspflichtige Regelvorschläge sowie Regelverwaltung mit Vorschau und Versionsrücknahme unter `/training`. Das Training löst keine KI-Kosten oder Anbieteraktionen aus.
+- [Intelligente Filterung und Trainingsmodus](docs/TRAINING.md): fortsetzbare Sessions, optionale Begründungen, Korrekturen, Regelvorschläge und eine Vorschau mit Trefferzahlen je Bedingung sowie Beispielen, die Treffer und Ausschlüsse erklären. Neue Regeln lassen sich vor dem Speichern prüfen. Das Training löst keine KI-Kosten oder Anbieteraktionen aus.
 - Feste Routen für Dashboard, Postfach, Papierkorb, Newsletter, Absender, Aufräumen, Aktivitäten und Einstellungen; die Demo startet erst nach explizitem Klick.
 - `/` führt angemeldete Nutzer zum Dashboard und alle anderen zur Login-Seite. Der Demo-Zugang bleibt dort als bewusste Auswahl verfügbar.
-- Das Postfach zeigt alle erfassten E-Mails mit Suche, Filtern und Pagination. Dashboard-Kennzahlen und Widgets können pro Browser angepasst werden.
+- Das Postfach zeigt aktive erfasste E-Mails mit Suche, Filtern und Pagination. In den Papierkorb verschobene Nachrichten erscheinen nur unter `/trash`. Dashboard-Kennzahlen und Widgets können pro Browser angepasst werden.
 - Eigener Papierkorb unter `/trash` mit Suche, Kategorie-/Status-/Datumsfiltern, Seitenwechsel und Wiederherstellung ausgewählter Nachrichten. Aktionsdetails lassen sich ebenfalls nach Status, Betreff/Absender und Nachrichtendatum filtern.
 - Warteschlange im Aktivitätsverlauf pausieren/fortsetzen, abgeschlossene Historie leeren und sichere lokale Vorgänge erneut starten.
 - Lokalen Datenbestand eines Postfachs unabhängig von den E-Mails beim Anbieter leeren; Konto nach Passwortbestätigung unwiderruflich löschen.

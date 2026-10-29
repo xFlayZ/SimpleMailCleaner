@@ -26,7 +26,7 @@ The screenshots show the application UI in demo mode with fictional mailbox data
 
 ## Features
 
-- Personal [training mode and intelligent filters](docs/TRAINING.md): resumable sessions, optional reasons, correction feedback, inactive rule suggestions, dry-runs and versioned rule management. Metadata rules run before external AI; training itself has no API charges or provider actions.
+- Personal [training mode and intelligent filters](docs/TRAINING.md): resumable sessions, optional reasons, correction feedback, inactive rule suggestions, per-condition dry-run counts and examples explaining why messages match or are excluded. Draft rules can be previewed before saving. Metadata rules run before external AI; training itself has no API charges or provider actions.
 - Dashboard with indexed-message, newsletter, cleanup-suggestion, sender, unclassified-message and AI-usage metrics. Widgets can be hidden or reordered per browser.
 - Dedicated routes for Dashboard, Mailbox, Newsletters, Senders, Cleanup, Activity and Settings.
 - Dedicated Trash view at `/trash` with search, category/status/date filters, pagination and selected-message restore. Activity action results can also be searched and filtered by status and message date.
@@ -104,7 +104,7 @@ For Gmail and Outlook, create an OAuth application with the exact callback URLs 
 | Route | Area |
 | --- | --- |
 | `/dashboard` | Overview and configurable widgets |
-| `/mailbox` | All indexed messages, search and filters |
+| `/mailbox` | Active indexed messages only, with search and filters |
 | `/trash` | Messages moved to provider trash, with search, filters and restore |
 | `/newsletter` | Newsletter groups and unsubscribe review |
 | `/senders` | Recurring senders and sender protection |

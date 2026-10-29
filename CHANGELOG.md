@@ -6,6 +6,8 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Added
 
+- Expanded personal filter dry-runs with per-condition counts, actionable/protected totals, predicted outcomes, category breakdowns and representative examples explaining matches and exclusions. New draft rules can be previewed before saving.
+- Added a newsletter-group cleanup scope that only selects messages from that exact newsletter sender/list, plus an account lock when a bulk action was opened from a single mailbox.
 - Replaced README mockup artwork with the supplied in-app dashboard and mailbox screenshots. The root route now sends signed-in users to the dashboard and everyone else to login; an explicit demo entry remains available from the login page.
 - Added a dedicated `/trash` workspace with searchable, filterable, paginated messages and safe restore selection. Activity action-result details now support subject/sender search, status filtering and received-date filters.
 - Added a Coolify-ready Compose stack with separate web, worker, PostgreSQL and migration services, persistent database storage, and linked beginner-friendly deployment guides in German and English. Worker and migration commands now accept Coolify-provided environment variables without requiring a `.env` file.
@@ -25,6 +27,9 @@ All notable user-facing and operational changes are recorded here. Dates use ISO
 
 ### Changed
 
+- Restricted the global newsletter deletion shortcut to the Newsletter workspace; Mailbox and Cleanup keep criteria-based actions and explicit message selection.
+- Made primary actions view-specific: metadata import is shown only where it is useful, the Trash view offers restore actions instead of cleanup/review controls, and filtered message lists no longer expose broader newsletter/date bulk actions. Removed the duplicate login modal in favor of the dedicated login page.
+- The Mailbox view now shows active messages only; messages moved to the provider trash are available exclusively in the dedicated Trash view.
 - Fixed the missing activity navigation item after adding training; navigation now includes every workspace section except the separately placed settings link.
 - Gmail imports now fetch at most five metadata messages concurrently. Gmail and Outlook report page/batch progress and check cancellation while fetching, instead of waiting for the full mailbox selection.
 - Added actionable network, timeout, permission and schema error messages; worker diagnostics log safe error codes and periodic liveness messages without exception contents or credentials.
